@@ -345,17 +345,76 @@ export class DatabaseStore {
     const setFS = (fid: string, sid: string) => {
       this.facultySubjects.set(`${fid}_${sid}`, { faculty_id: fid, subject_id: sid });
     };
+    // Final Year
     setFS('FAC-RP', 'SUB-DM-BTECH');
+    setFS('FAC-RS', 'SUB-DM-BTECH');
+    setFS('FAC-NS', 'SUB-DM-BTECH');
     setFS('FAC-VJN', 'SUB-PANS');
+    setFS('FAC-VJN', 'SUB-PANS-LAB');
+    setFS('FAC-SB', 'SUB-ST');
+    setFS('FAC-SB', 'SUB-ST-LAB');
     setFS('FAC-HCD', 'SUB-DL');
+    setFS('FAC-HCD', 'SUB-DL-LAB');
+    setFS('FAC-AK', 'SUB-DL');
+    setFS('FAC-AK', 'SUB-DL-LAB');
+    setFS('FAC-STS', 'SUB-QC');
+    setFS('FAC-STS', 'SUB-QC-LAB');
+    setFS('FAC-PV', 'SUB-MDMV-DS');
     setFS('FAC-PV', 'SUB-CPAD-LAB');
+    setFS('FAC-PV', 'SUB-OEII');
+    setFS('FAC-AM', 'SUB-CPAD-LAB');
+    setFS('FAC-AM', 'SUB-HON-BC');
+    setFS('FAC-SSL', 'SUB-HON-ARVR');
+    setFS('FAC-PS', 'SUB-MDMV-AI');
+    setFS('FAC-PMC', 'SUB-PROJECT');
+    // TY CE
     setFS('FAC-AN', 'SUB-CC-CE');
     setFS('FAC-SCS', 'SUB-ML-CE');
+    setFS('FAC-SCS', 'SUB-ML-LAB-CE');
     setFS('FAC-MMC', 'SUB-CN-CE');
+    setFS('FAC-MMC', 'SUB-CN-LAB-CE');
     setFS('FAC-MKS', 'SUB-PC-CE');
-    setFS('FAC-MUK', 'SUB-DAA-CE');
-    setFS('FAC-VDD', 'SUB-OS-CE');
+    setFS('FAC-MKS', 'SUB-PC-LAB-CE');
+    setFS('FAC-SSS', 'SUB-HCI-CE');
+    setFS('FAC-SSU', 'SUB-MDM3-ML');
+    setFS('FAC-VKS', 'SUB-PE1-IP');
+    setFS('FAC-KKJ', 'SUB-PE1-OT');
+    // TY IT
+    setFS('FAC-IM', 'SUB-ML-IT');
+    setFS('FAC-IM', 'SUB-ML-LAB-IT');
+    setFS('FAC-MRS', 'SUB-SE-IT');
+    setFS('FAC-PS', 'SUB-SE-LAB-IT');
+    setFS('FAC-PSS', 'SUB-PC-IT');
+    setFS('FAC-PSS', 'SUB-PP-LAB-IT');
+    setFS('FAC-VBN', 'SUB-CC-IT');
+    setFS('FAC-PS', 'SUB-CY-IT');
+    setFS('FAC-IM', 'SUB-MDM3-DLNN');
+    setFS('FAC-AK', 'SUB-PE1-HCI');
+    // SY CE
+    setFS('FAC-SGK', 'SUB-MCE');
     setFS('FAC-NAS', 'SUB-DS-CE');
+    setFS('FAC-MUK', 'SUB-DAA-CE');
+    setFS('FAC-MUK', 'SUB-ALGO-LAB-CE');
+    setFS('FAC-VDD', 'SUB-OS-CE');
+    setFS('FAC-VDD', 'SUB-OS-LAB-CE');
+    setFS('FAC-SAK', 'SUB-MDM1-DS');
+    setFS('FAC-SD', 'SUB-PDL-LAB-CE');
+    setFS('FAC-SSS', 'SUB-OST-LAB-CE');
+    setFS('FAC-NS', 'SUB-MIL');
+    setFS('FAC-SGK', 'SUB-UHV');
+    // SY IT
+    setFS('FAC-SAK', 'SUB-MCE');
+    setFS('FAC-RP', 'SUB-DM-IT');
+    setFS('FAC-SSL', 'SUB-DAA-IT');
+    setFS('FAC-SSL', 'SUB-ALGO-LAB-IT');
+    setFS('FAC-SD', 'SUB-OS-IT');
+    setFS('FAC-SD', 'SUB-OS-LAB-IT');
+    setFS('FAC-SAK', 'SUB-MDM1-AIML');
+    setFS('FAC-RP', 'SUB-PDL-LAB-IT');
+    setFS('FAC-PSS', 'SUB-OST-LAB-IT');
+    setFS('FAC-SSL', 'SUB-MIL');
+    setFS('FAC-NS', 'SUB-UHV');
+    // Compatibility aliases
     setFS('FAC-PMC', 'SUB-001');
     setFS('FAC-001', 'SUB-001');
     setFS('FAC-002', 'SUB-002');

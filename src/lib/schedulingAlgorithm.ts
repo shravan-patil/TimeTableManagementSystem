@@ -360,10 +360,6 @@ export function calculateSoftCost(
         gapCount++;
       }
     }
-
-    if (maxP > 6) {
-      compactnessCost += (maxP - 6) * 25;
-    }
   });
 
   const gapCost = gapCount * 1000;
@@ -494,8 +490,24 @@ export function generateTimetable(
 
   const getFacultyForSubject = (subId: string, bId: string): string => {
     const list = facultySubjectMap.get(subId) || [];
-    if (list.length > 0) return list[0];
-    return `TBA_${subId}_${bId}`;
+    if (list.length === 0) return `TBA_${subId}_${bId}`;
+    if (list.length === 1) return list[0];
+    const isIT = bId.includes('IT');
+    const isCE = bId.includes('CE');
+    if (isIT) {
+      const itFac = list.find((fid) => {
+        const f = facultyMap.get(fid);
+        return f && f.Department.toLowerCase().includes('information');
+      });
+      if (itFac) return itFac;
+    } else if (isCE) {
+      const ceFac = list.find((fid) => {
+        const f = facultyMap.get(fid);
+        return f && f.Department.toLowerCase().includes('computer');
+      });
+      if (ceFac) return ceFac;
+    }
+    return list[0];
   };
 
   const unavailSet = new Set<string>();
@@ -580,11 +592,18 @@ export function generateTimetable(
           difficultyScore: 8000,
           duration: 1,
           targetRoomType: 'Lecture Hall',
-          tracks: subs.map((subId) => ({
-            subjectId: subId,
-            facultyId: getFacultyForSubject(subId, 'BTECH'),
-            batchId: 'BATCH-BTECH-CE',
-          })),
+          tracks: [
+            ...subs.map((subId) => ({
+              subjectId: subId,
+              facultyId: getFacultyForSubject(subId, 'BATCH-BTECH-CE'),
+              batchId: 'BATCH-BTECH-CE',
+            })),
+            ...subs.map((subId) => ({
+              subjectId: subId,
+              facultyId: getFacultyForSubject(subId, 'BATCH-BTECH-IT'),
+              batchId: 'BATCH-BTECH-IT',
+            })),
+          ],
           cohortBatches: ['BATCH-BTECH-CE', 'BATCH-BTECH-IT'],
         });
       }
@@ -598,8 +617,10 @@ export function generateTimetable(
       duration: 2,
       targetRoomType: 'Laboratory',
       tracks: [
-        { subjectId: 'SUB-PANS-LAB', facultyId: getFacultyForSubject('SUB-PANS-LAB', 'BTECH'), batchId: 'BATCH-BTECH-CE' },
-        { subjectId: 'SUB-ST-LAB', facultyId: getFacultyForSubject('SUB-ST-LAB', 'BTECH'), batchId: 'BATCH-BTECH-CE' },
+        { subjectId: 'SUB-PANS-LAB', facultyId: getFacultyForSubject('SUB-PANS-LAB', 'BATCH-BTECH-CE'), batchId: 'BATCH-BTECH-CE' },
+        { subjectId: 'SUB-ST-LAB', facultyId: getFacultyForSubject('SUB-ST-LAB', 'BATCH-BTECH-CE'), batchId: 'BATCH-BTECH-CE' },
+        { subjectId: 'SUB-PANS-LAB', facultyId: getFacultyForSubject('SUB-PANS-LAB', 'BATCH-BTECH-IT'), batchId: 'BATCH-BTECH-IT' },
+        { subjectId: 'SUB-ST-LAB', facultyId: getFacultyForSubject('SUB-ST-LAB', 'BATCH-BTECH-IT'), batchId: 'BATCH-BTECH-IT' },
       ],
       cohortBatches: ['BATCH-BTECH-CE', 'BATCH-BTECH-IT'],
     });
@@ -611,8 +632,10 @@ export function generateTimetable(
       duration: 2,
       targetRoomType: 'Laboratory',
       tracks: [
-        { subjectId: 'SUB-DL-LAB', facultyId: getFacultyForSubject('SUB-DL-LAB', 'BTECH'), batchId: 'BATCH-BTECH-CE' },
-        { subjectId: 'SUB-QC-LAB', facultyId: getFacultyForSubject('SUB-QC-LAB', 'BTECH'), batchId: 'BATCH-BTECH-CE' },
+        { subjectId: 'SUB-DL-LAB', facultyId: getFacultyForSubject('SUB-DL-LAB', 'BATCH-BTECH-CE'), batchId: 'BATCH-BTECH-CE' },
+        { subjectId: 'SUB-QC-LAB', facultyId: getFacultyForSubject('SUB-QC-LAB', 'BATCH-BTECH-CE'), batchId: 'BATCH-BTECH-CE' },
+        { subjectId: 'SUB-DL-LAB', facultyId: getFacultyForSubject('SUB-DL-LAB', 'BATCH-BTECH-IT'), batchId: 'BATCH-BTECH-IT' },
+        { subjectId: 'SUB-QC-LAB', facultyId: getFacultyForSubject('SUB-QC-LAB', 'BATCH-BTECH-IT'), batchId: 'BATCH-BTECH-IT' },
       ],
       cohortBatches: ['BATCH-BTECH-CE', 'BATCH-BTECH-IT'],
     });
@@ -623,7 +646,10 @@ export function generateTimetable(
       difficultyScore: 8700,
       duration: 2,
       targetRoomType: 'Laboratory',
-      tracks: [{ subjectId: 'SUB-CPAD-LAB', facultyId: getFacultyForSubject('SUB-CPAD-LAB', 'BTECH'), batchId: 'BATCH-BTECH-CE' }],
+      tracks: [
+        { subjectId: 'SUB-CPAD-LAB', facultyId: getFacultyForSubject('SUB-CPAD-LAB', 'BATCH-BTECH-CE'), batchId: 'BATCH-BTECH-CE' },
+        { subjectId: 'SUB-CPAD-LAB', facultyId: getFacultyForSubject('SUB-CPAD-LAB', 'BATCH-BTECH-IT'), batchId: 'BATCH-BTECH-IT' },
+      ],
       cohortBatches: ['BATCH-BTECH-CE', 'BATCH-BTECH-IT'],
     });
 
@@ -634,12 +660,15 @@ export function generateTimetable(
         difficultyScore: 8600,
         duration: 2,
         targetRoomType: 'Laboratory',
-        tracks: [{ subjectId: 'SUB-PROJECT', facultyId: getFacultyForSubject('SUB-PROJECT', 'BTECH'), batchId: 'BATCH-BTECH-CE' }],
+        tracks: [
+          { subjectId: 'SUB-PROJECT', facultyId: getFacultyForSubject('SUB-PROJECT', 'BATCH-BTECH-CE'), batchId: 'BATCH-BTECH-CE' },
+          { subjectId: 'SUB-PROJECT', facultyId: getFacultyForSubject('SUB-PROJECT', 'BATCH-BTECH-IT'), batchId: 'BATCH-BTECH-IT' },
+        ],
         cohortBatches: ['BATCH-BTECH-CE', 'BATCH-BTECH-IT'],
       });
     }
 
-    // Final Year DM (CE)
+    // Final Year DM (CE & IT)
     for (let h = 0; h < 3; h++) {
       schedulingUnits.push({
         unitId: `FINAL_DM_CE_${h + 1}`,
@@ -649,6 +678,15 @@ export function generateTimetable(
         targetRoomType: 'Lecture Hall',
         tracks: [{ subjectId: 'SUB-DM-BTECH', facultyId: getFacultyForSubject('SUB-DM-BTECH', 'BATCH-BTECH-CE'), batchId: 'BATCH-BTECH-CE' }],
         cohortBatches: ['BATCH-BTECH-CE'],
+      });
+      schedulingUnits.push({
+        unitId: `FINAL_DM_IT_${h + 1}`,
+        kind: 'Theory',
+        difficultyScore: 3500,
+        duration: 1,
+        targetRoomType: 'Lecture Hall',
+        tracks: [{ subjectId: 'SUB-DM-BTECH', facultyId: getFacultyForSubject('SUB-DM-BTECH', 'BATCH-BTECH-IT'), batchId: 'BATCH-BTECH-IT' }],
+        cohortBatches: ['BATCH-BTECH-IT'],
       });
     }
 
@@ -668,8 +706,9 @@ export function generateTimetable(
       });
     }
 
+    // Two 2-hour lab blocks for TY CE
     schedulingUnits.push({
-      unitId: `TY_CE_LAB_BLOCK`,
+      unitId: `TY_CE_LAB_BLOCK_1`,
       kind: 'ParallelLabBlock',
       difficultyScore: 8700,
       duration: 2,
@@ -677,6 +716,17 @@ export function generateTimetable(
       tracks: [
         { subjectId: 'SUB-ML-LAB-CE', facultyId: getFacultyForSubject('SUB-ML-LAB-CE', 'BATCH-TY-CE'), batchId: 'BATCH-TY-CE' },
         { subjectId: 'SUB-CN-LAB-CE', facultyId: getFacultyForSubject('SUB-CN-LAB-CE', 'BATCH-TY-CE'), batchId: 'BATCH-TY-CE' },
+      ],
+      cohortBatches: ['BATCH-TY-CE'],
+    });
+
+    schedulingUnits.push({
+      unitId: `TY_CE_LAB_BLOCK_2`,
+      kind: 'ParallelLabBlock',
+      difficultyScore: 8700,
+      duration: 2,
+      targetRoomType: 'Laboratory',
+      tracks: [
         { subjectId: 'SUB-PC-LAB-CE', facultyId: getFacultyForSubject('SUB-PC-LAB-CE', 'BATCH-TY-CE'), batchId: 'BATCH-TY-CE' },
       ],
       cohortBatches: ['BATCH-TY-CE'],
@@ -705,8 +755,9 @@ export function generateTimetable(
     });
 
     // 4. TY IT
+    // Two 2-hour lab blocks for TY IT
     schedulingUnits.push({
-      unitId: `TY_IT_LAB_BLOCK`,
+      unitId: `TY_IT_LAB_BLOCK_1`,
       kind: 'ParallelLabBlock',
       difficultyScore: 8700,
       duration: 2,
@@ -714,6 +765,17 @@ export function generateTimetable(
       tracks: [
         { subjectId: 'SUB-ML-LAB-IT', facultyId: getFacultyForSubject('SUB-ML-LAB-IT', 'BATCH-TY-IT'), batchId: 'BATCH-TY-IT' },
         { subjectId: 'SUB-SE-LAB-IT', facultyId: getFacultyForSubject('SUB-SE-LAB-IT', 'BATCH-TY-IT'), batchId: 'BATCH-TY-IT' },
+      ],
+      cohortBatches: ['BATCH-TY-IT'],
+    });
+
+    schedulingUnits.push({
+      unitId: `TY_IT_LAB_BLOCK_2`,
+      kind: 'ParallelLabBlock',
+      difficultyScore: 8700,
+      duration: 2,
+      targetRoomType: 'Laboratory',
+      tracks: [
         { subjectId: 'SUB-PP-LAB-IT', facultyId: getFacultyForSubject('SUB-PP-LAB-IT', 'BATCH-TY-IT'), batchId: 'BATCH-TY-IT' },
       ],
       cohortBatches: ['BATCH-TY-IT'],
@@ -743,8 +805,9 @@ export function generateTimetable(
     });
 
     // 5. SY CE
+    // Two 2-hour lab blocks for SY CE
     schedulingUnits.push({
-      unitId: `SY_CE_LAB_BLOCK`,
+      unitId: `SY_CE_LAB_BLOCK_1`,
       kind: 'ParallelLabBlock',
       difficultyScore: 8900,
       duration: 2,
@@ -752,6 +815,17 @@ export function generateTimetable(
       tracks: [
         { subjectId: 'SUB-ALGO-LAB-CE', facultyId: getFacultyForSubject('SUB-ALGO-LAB-CE', 'BATCH-SY-CE'), batchId: 'BATCH-SY-CE' },
         { subjectId: 'SUB-OS-LAB-CE', facultyId: getFacultyForSubject('SUB-OS-LAB-CE', 'BATCH-SY-CE'), batchId: 'BATCH-SY-CE' },
+      ],
+      cohortBatches: ['BATCH-SY-CE'],
+    });
+
+    schedulingUnits.push({
+      unitId: `SY_CE_LAB_BLOCK_2`,
+      kind: 'ParallelLabBlock',
+      difficultyScore: 8900,
+      duration: 2,
+      targetRoomType: 'Laboratory',
+      tracks: [
         { subjectId: 'SUB-PDL-LAB-CE', facultyId: getFacultyForSubject('SUB-PDL-LAB-CE', 'BATCH-SY-CE'), batchId: 'BATCH-SY-CE' },
         { subjectId: 'SUB-OST-LAB-CE', facultyId: getFacultyForSubject('SUB-OST-LAB-CE', 'BATCH-SY-CE'), batchId: 'BATCH-SY-CE' },
       ],
@@ -782,8 +856,9 @@ export function generateTimetable(
     });
 
     // 6. SY IT
+    // Two 2-hour lab blocks for SY IT
     schedulingUnits.push({
-      unitId: `SY_IT_LAB_BLOCK`,
+      unitId: `SY_IT_LAB_BLOCK_1`,
       kind: 'ParallelLabBlock',
       difficultyScore: 8900,
       duration: 2,
@@ -791,6 +866,17 @@ export function generateTimetable(
       tracks: [
         { subjectId: 'SUB-ALGO-LAB-IT', facultyId: getFacultyForSubject('SUB-ALGO-LAB-IT', 'BATCH-SY-IT'), batchId: 'BATCH-SY-IT' },
         { subjectId: 'SUB-OS-LAB-IT', facultyId: getFacultyForSubject('SUB-OS-LAB-IT', 'BATCH-SY-IT'), batchId: 'BATCH-SY-IT' },
+      ],
+      cohortBatches: ['BATCH-SY-IT'],
+    });
+
+    schedulingUnits.push({
+      unitId: `SY_IT_LAB_BLOCK_2`,
+      kind: 'ParallelLabBlock',
+      difficultyScore: 8900,
+      duration: 2,
+      targetRoomType: 'Laboratory',
+      tracks: [
         { subjectId: 'SUB-PDL-LAB-IT', facultyId: getFacultyForSubject('SUB-PDL-LAB-IT', 'BATCH-SY-IT'), batchId: 'BATCH-SY-IT' },
         { subjectId: 'SUB-OST-LAB-IT', facultyId: getFacultyForSubject('SUB-OST-LAB-IT', 'BATCH-SY-IT'), batchId: 'BATCH-SY-IT' },
       ],
@@ -992,23 +1078,34 @@ export function generateTimetable(
               }
             }
             if (roomFree) {
+              let jointCost = 0;
+              const b = batchMap.get(unit.cohortBatches[0]);
+              const lunchP = getBatchLunchPeriod(b);
+              if (p > lunchP) jointCost -= 80;
               validOptions.push({
                 day,
                 periodNo: p,
                 rooms: [room],
-                costEstimate: Math.abs(p - 2) * 5,
+                costEstimate: jointCost,
               });
               break;
             }
           }
         } else {
           const trackRooms: Room[] = [];
+          const subjectRoomMap = new Map<string, Room>();
+
           for (const track of unit.tracks) {
+            if (subjectRoomMap.has(track.subjectId)) {
+              trackRooms.push(subjectRoomMap.get(track.subjectId)!);
+              continue;
+            }
+
             const batch = batchMap.get(track.batchId);
             const reqCap = unit.kind === 'Theory' && batch ? batch.Strength : 0;
 
             for (const room of candidateRooms) {
-              if (trackRooms.includes(room)) continue;
+              if (Array.from(subjectRoomMap.values()).includes(room)) continue;
               if (reqCap > 0 && room.Capacity < reqCap) continue;
 
               let roomFree = true;
@@ -1020,6 +1117,7 @@ export function generateTimetable(
                 }
               }
               if (roomFree) {
+                subjectRoomMap.set(track.subjectId, room);
                 trackRooms.push(room);
                 break;
               }
@@ -1027,7 +1125,98 @@ export function generateTimetable(
           }
 
           if (trackRooms.length === unit.tracks.length) {
-            let softEstimate = Math.abs(p - 2) * 5;
+            let softEstimate = 0;
+            const primaryBatchId = unit.cohortBatches[0];
+            const b = batchMap.get(primaryBatchId);
+            const lunchP = getBatchLunchPeriod(b);
+            const isPostLunch = p > lunchP;
+
+            // Existing periods booked on this day for this batch
+            const existingDayPeriods = sessions
+              .filter((s) => unit.cohortBatches.includes(s.Batch_ID) && slotMap.get(s.Slot_ID)?.Day === day)
+              .map((s) => slotMap.get(s.Slot_ID)!.Period_No);
+
+            const preLunchCount = existingDayPeriods.filter((per) => per < lunchP).length;
+            const postLunchCount = existingDayPeriods.filter((per) => per > lunchP).length;
+
+            // 1. Separate Morning & Afternoon load balancing (Target ~3-4 morning periods, ~1-2 afternoon periods)
+            if (!isPostLunch) {
+              // Balances morning theory across all days so every morning has classes (e.g. Mon-Fri mornings)
+              softEstimate += (preLunchCount - 3) * 80;
+            } else {
+              // Balances afternoon load so afternoons are not left empty on theory days
+              softEstimate += (postLunchCount - 1) * 90;
+            }
+
+            // 2. Strong post-lunch balancing: When a batch has 3+ morning classes on a day, encourage afternoon lecture
+            if (isPostLunch && postLunchCount === 0 && preLunchCount >= 3) {
+              softEstimate -= 180;
+            }
+
+            // Penalty for multiple lab blocks on the same day for the same batch
+            if (unit.targetRoomType === 'Laboratory') {
+              const existingLabOnDay = sessions.some(
+                (s) =>
+                  unit.cohortBatches.includes(s.Batch_ID) &&
+                  s.Session_Type === 'Lab' &&
+                  slotMap.get(s.Slot_ID)?.Day === day
+              );
+              if (existingLabOnDay) softEstimate += 900;
+            }
+
+            // 3. ZERO-GAP CONTIGUITY CONSTRAINT (Eliminate idle wait times)
+            const candidatePeriods: number[] = [];
+            for (let d = 0; d < unit.duration; d++) {
+              candidatePeriods.push(p + d);
+            }
+            const combinedPeriods = Array.from(new Set([...existingDayPeriods, ...candidatePeriods])).sort((x, y) => x - y);
+            const morningPeriods = combinedPeriods.filter((per) => per < lunchP);
+            const afternoonPeriods = combinedPeriods.filter((per) => per > lunchP);
+
+            // Morning zero-gap check
+            if (morningPeriods.length >= 2) {
+              const minM = Math.min(...morningPeriods);
+              const maxM = Math.max(...morningPeriods);
+              const gaps = (maxM - minM + 1) - morningPeriods.length;
+              if (gaps > 0) {
+                softEstimate += gaps * 1200; // Massive penalty for morning idle holes
+              } else {
+                softEstimate -= 120; // Contiguous block reward
+              }
+            }
+
+            // Afternoon zero-gap check
+            if (afternoonPeriods.length >= 2) {
+              const minA = Math.min(...afternoonPeriods);
+              const maxA = Math.max(...afternoonPeriods);
+              const gaps = (maxA - minA + 1) - afternoonPeriods.length;
+              if (gaps > 0) {
+                softEstimate += gaps * 1200; // Massive penalty for afternoon idle holes
+              } else {
+                softEstimate -= 120; // Contiguous block reward
+              }
+            }
+
+            // Morning anchoring: Prefer starting early (Period 1 or 2) rather than isolated late morning
+            if (p === 1) softEstimate -= 60;
+            else if (p === 2) softEstimate -= 30;
+
+            // Afternoon anchoring for SY (Period 6 is right after Lunch Period 5)
+            if (lunchP === 5) {
+              if (p === 6) softEstimate -= 50; // Immediate post-lunch slot
+              if (p === 7 && !existingDayPeriods.includes(6) && !candidatePeriods.includes(6)) {
+                softEstimate += 400; // Disincentive to place P7 alone leaving P6 empty after lunch
+              }
+            }
+
+            // Intra-session continuity bonus: reward placement directly adjacent to an existing period on the same side of lunch
+            const hasAdjacent = existingDayPeriods.some((per) =>
+              (isPostLunch && per > lunchP && (per === p - 1 || per === p + unit.duration)) ||
+              (!isPostLunch && per < lunchP && (per === p - 1 || per === p + unit.duration))
+            );
+            if (hasAdjacent) {
+              softEstimate -= 40;
+            }
 
             // Penalty for duplicate subject on same day (S3)
             for (const track of unit.tracks) {
@@ -1037,7 +1226,7 @@ export function generateTimetable(
                   s.Subject_ID === track.subjectId &&
                   slotMap.get(s.Slot_ID)?.Day === day
               );
-              if (existingOnDay) softEstimate += 500;
+              if (existingOnDay) softEstimate += 600;
             }
 
             // Penalty for faculty daily overload / fatigue (S4 & S2)
@@ -1129,8 +1318,12 @@ export function generateTimetable(
       }
 
       if (gapP !== -1) {
-        const boundary = sortedPeriods[sortedPeriods.length - 1];
-        if (boundary.session.Session_Type === 'Lecture') {
+        // Only move a boundary session from the same side of lunch as the gap to preserve post-break classes
+        const candidatePeriods = sortedPeriods.filter((sp) =>
+          (gapP < lunchP ? sp.period < lunchP : sp.period > lunchP)
+        );
+        const boundary = candidatePeriods.length > 0 ? candidatePeriods[candidatePeriods.length - 1] : null;
+        if (boundary && boundary.session.Session_Type === 'Lecture') {
           const targetSlot = validSlots.find((s) => s.Day === randomDay && s.Period_No === gapP);
           if (
             targetSlot &&
@@ -1258,6 +1451,185 @@ export function generateTimetable(
                   );
                 }
               }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // STAGE 3C: Final Deterministic Zero-Gap Compaction & Staggered Recess Polish
+  // ---------------------------------------------------------------------------
+  for (const b of batches) {
+    const lunchP = getBatchLunchPeriod(b);
+    for (const day of workingDays) {
+      // 1. Morning zero-gap compaction (Periods 1 to lunchP - 1)
+      let amChanged = true;
+      let amPasses = 0;
+      while (amChanged && amPasses < 10) {
+        amChanged = false;
+        amPasses++;
+        const bDaySessions = sessions.filter(
+          (s) => s.Batch_ID === b.Batch_ID && slotMap.get(s.Slot_ID)?.Day === day
+        );
+        const morningSess = bDaySessions
+          .filter((s) => slotMap.get(s.Slot_ID)!.Period_No < lunchP)
+          .sort((x, y) => slotMap.get(x.Slot_ID)!.Period_No - slotMap.get(y.Slot_ID)!.Period_No);
+
+        if (morningSess.length >= 2) {
+          const morningPeriods = morningSess.map((s) => slotMap.get(s.Slot_ID)!.Period_No);
+          const minP = morningPeriods[0];
+          const maxP = morningPeriods[morningPeriods.length - 1];
+
+          for (let p = minP + 1; p < maxP; p++) {
+            if (!morningPeriods.includes(p)) {
+              // Found gap at p. Move the nearest lecture after p into p
+              const toMove = morningSess.find(
+                (s) => slotMap.get(s.Slot_ID)!.Period_No > p && s.Session_Type === 'Lecture'
+              );
+              if (toMove) {
+                const targetSlot = validSlots.find((s) => s.Day === day && s.Period_No === p);
+                if (targetSlot) {
+                  const targetRoom =
+                    (occupiedRoom.get(`${toMove.Room_ID}_${targetSlot.Slot_ID}`) || 0) === 0
+                      ? roomMap.get(toMove.Room_ID)
+                      : lectureRooms.find(
+                          (r) =>
+                            (occupiedRoom.get(`${r.Room_ID}_${targetSlot.Slot_ID}`) || 0) === 0 &&
+                            r.Capacity >= (b.Strength || 60)
+                        );
+
+                  if (
+                    targetRoom &&
+                    (occupiedBatch.get(`${toMove.Batch_ID}_${targetSlot.Slot_ID}`) || 0) === 0 &&
+                    (isDummyFaculty(toMove.Faculty_ID) ||
+                      ((occupiedFaculty.get(`${toMove.Faculty_ID}_${targetSlot.Slot_ID}`) || 0) === 0 &&
+                        !unavailSet.has(`${toMove.Faculty_ID}_${targetSlot.Slot_ID}`)))
+                  ) {
+                    unbookSession(toMove);
+                    bookTrack(
+                      {
+                        subjectId: toMove.Subject_ID,
+                        facultyId: toMove.Faculty_ID,
+                        batchId: toMove.Batch_ID,
+                      },
+                      targetRoom,
+                      targetSlot,
+                      false
+                    );
+                    amChanged = true;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // 2. Afternoon zero-gap compaction (Periods lunchP + 1 to maxPeriod)
+      let pmChanged = true;
+      let pmPasses = 0;
+      while (pmChanged && pmPasses < 10) {
+        pmChanged = false;
+        pmPasses++;
+        const bDaySessions = sessions.filter(
+          (s) => s.Batch_ID === b.Batch_ID && slotMap.get(s.Slot_ID)?.Day === day
+        );
+        const pmSess = bDaySessions
+          .filter((s) => slotMap.get(s.Slot_ID)!.Period_No > lunchP)
+          .sort((x, y) => slotMap.get(x.Slot_ID)!.Period_No - slotMap.get(y.Slot_ID)!.Period_No);
+
+        if (pmSess.length >= 2) {
+          const pmPeriods = pmSess.map((s) => slotMap.get(s.Slot_ID)!.Period_No);
+          const minP = pmPeriods[0];
+          const maxP = pmPeriods[pmPeriods.length - 1];
+
+          for (let p = minP + 1; p < maxP; p++) {
+            if (!pmPeriods.includes(p)) {
+              const toMove = pmSess.find(
+                (s) => slotMap.get(s.Slot_ID)!.Period_No > p && s.Session_Type === 'Lecture'
+              );
+              if (toMove) {
+                const targetSlot = validSlots.find((s) => s.Day === day && s.Period_No === p);
+                if (targetSlot) {
+                  const targetRoom =
+                    (occupiedRoom.get(`${toMove.Room_ID}_${targetSlot.Slot_ID}`) || 0) === 0
+                      ? roomMap.get(toMove.Room_ID)
+                      : lectureRooms.find(
+                          (r) =>
+                            (occupiedRoom.get(`${r.Room_ID}_${targetSlot.Slot_ID}`) || 0) === 0 &&
+                            r.Capacity >= (b.Strength || 60)
+                        );
+
+                  if (
+                    targetRoom &&
+                    (occupiedBatch.get(`${toMove.Batch_ID}_${targetSlot.Slot_ID}`) || 0) === 0 &&
+                    (isDummyFaculty(toMove.Faculty_ID) ||
+                      ((occupiedFaculty.get(`${toMove.Faculty_ID}_${targetSlot.Slot_ID}`) || 0) === 0 &&
+                        !unavailSet.has(`${toMove.Faculty_ID}_${targetSlot.Slot_ID}`)))
+                  ) {
+                    unbookSession(toMove);
+                    bookTrack(
+                      {
+                        subjectId: toMove.Subject_ID,
+                        facultyId: toMove.Faculty_ID,
+                        batchId: toMove.Batch_ID,
+                      },
+                      targetRoom,
+                      targetSlot,
+                      false
+                    );
+                    pmChanged = true;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // 3. Post-Lunch Anchoring for SY: If an afternoon lecture sits at Period 7 while Period 6 is empty, slide it to Period 6
+      if (lunchP === 5) {
+        const bDaySessions = sessions.filter(
+          (s) => s.Batch_ID === b.Batch_ID && slotMap.get(s.Slot_ID)?.Day === day
+        );
+        const p7Session = bDaySessions.find(
+          (s) => slotMap.get(s.Slot_ID)!.Period_No === 7 && s.Session_Type === 'Lecture'
+        );
+        const p6Occupied = bDaySessions.some((s) => slotMap.get(s.Slot_ID)!.Period_No === 6);
+        if (p7Session && !p6Occupied) {
+          const targetSlot = validSlots.find((s) => s.Day === day && s.Period_No === 6);
+          if (targetSlot) {
+            const targetRoom =
+              (occupiedRoom.get(`${p7Session.Room_ID}_${targetSlot.Slot_ID}`) || 0) === 0
+                ? roomMap.get(p7Session.Room_ID)
+                : lectureRooms.find(
+                    (r) =>
+                      (occupiedRoom.get(`${r.Room_ID}_${targetSlot.Slot_ID}`) || 0) === 0 &&
+                      r.Capacity >= (b.Strength || 60)
+                  );
+
+            if (
+              targetRoom &&
+              (occupiedBatch.get(`${p7Session.Batch_ID}_${targetSlot.Slot_ID}`) || 0) === 0 &&
+              (isDummyFaculty(p7Session.Faculty_ID) ||
+                ((occupiedFaculty.get(`${p7Session.Faculty_ID}_${targetSlot.Slot_ID}`) || 0) === 0 &&
+                  !unavailSet.has(`${p7Session.Faculty_ID}_${targetSlot.Slot_ID}`)))
+            ) {
+              unbookSession(p7Session);
+              bookTrack(
+                {
+                  subjectId: p7Session.Subject_ID,
+                  facultyId: p7Session.Faculty_ID,
+                  batchId: p7Session.Batch_ID,
+                },
+                targetRoom,
+                targetSlot,
+                false
+              );
             }
           }
         }

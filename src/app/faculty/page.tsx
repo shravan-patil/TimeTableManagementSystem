@@ -22,6 +22,11 @@ import {
   ChevronDown,
   Layers,
   Award,
+  Printer,
+  Sliders,
+  ShieldCheck,
+  Check,
+  X,
 } from 'lucide-react';
 import {
   initialFaculty,
@@ -100,6 +105,11 @@ export default function FacultyPortalPage() {
   const [reason, setReason] = useState('Attending National IEEE Conference');
   const [leaveStatus, setLeaveStatus] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Faculty Availability state (FR-11)
+  const [unavailableSlots, setUnavailableSlots] = useState<Set<string>>(new Set());
+  const [availSaving, setAvailSaving] = useState(false);
+  const [availSavedMsg, setAvailSavedMsg] = useState<string | null>(null);
 
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const periodSlots = [
@@ -212,12 +222,72 @@ export default function FacultyPortalPage() {
     } catch (e) {}
   }, [faculty.faculty_id]);
 
+  const fetchFacultyAvailability = useCallback(async () => {
+    try {
+      const local = localStorage.getItem(`vjti_ttms_avail_${faculty.faculty_id}`);
+      if (local) {
+        setUnavailableSlots(new Set(JSON.parse(local)));
+        return;
+      }
+      const res = await fetch(`/api/faculty/${faculty.faculty_id}/availability`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.availability)) {
+          const unavail = data.availability
+            .filter((a: any) => !a.Is_Available && !a.is_available)
+            .map((a: any) => a.Slot_ID || a.slot_id);
+          setUnavailableSlots(new Set(unavail));
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load faculty availability:', e);
+    }
+  }, [faculty.faculty_id]);
+
+  const toggleSlotAvailability = async (slotId: string) => {
+    const next = new Set(unavailableSlots);
+    const willBeUnavailable = !next.has(slotId);
+    if (willBeUnavailable) {
+      next.add(slotId);
+    } else {
+      next.delete(slotId);
+    }
+    setUnavailableSlots(next);
+    try {
+      localStorage.setItem(`vjti_ttms_avail_${faculty.faculty_id}`, JSON.stringify(Array.from(next)));
+    } catch (e) {}
+
+    setAvailSaving(true);
+    setAvailSavedMsg(null);
+    try {
+      await fetch(`/api/faculty/${faculty.faculty_id}/availability`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slotId,
+          isAvailable: !willBeUnavailable,
+        }),
+      });
+      setAvailSavedMsg(`Preferences saved: Slot ${slotId} marked as ${willBeUnavailable ? 'UNAVAILABLE' : 'AVAILABLE'}.`);
+      setTimeout(() => setAvailSavedMsg(null), 3500);
+    } catch (e) {
+      console.warn('Failed to save availability:', e);
+    } finally {
+      setAvailSaving(false);
+    }
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
   useEffect(() => {
     fetchSchedule();
     fetchOpenClaims();
     fetchMyLeaves();
     fetchMyClaimedSubs();
-  }, [fetchSchedule, fetchOpenClaims, fetchMyLeaves, fetchMyClaimedSubs]);
+    fetchFacultyAvailability();
+  }, [fetchSchedule, fetchOpenClaims, fetchMyLeaves, fetchMyClaimedSubs, fetchFacultyAvailability]);
 
   const assignedHours = schedule.length;
   const loadPercentage = Math.min(
@@ -343,6 +413,15 @@ export default function FacultyPortalPage() {
               </select>
             </div>
 
+            <button
+              onClick={handlePrint}
+              className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center space-x-1.5"
+              title="Print Schedule / Save PDF"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Print / PDF</span>
+            </button>
+
             <Link
               href="/"
               className="px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors hidden md:inline"
@@ -432,13 +511,23 @@ export default function FacultyPortalPage() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={fetchSchedule}
-              className="text-xs text-slate-500 hover:text-indigo-600 flex items-center space-x-1"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Refresh Schedule</span>
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handlePrint}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center space-x-1.5 transition-colors"
+                title="Print personal timetable"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print</span>
+              </button>
+              <button
+                onClick={fetchSchedule}
+                className="px-3 py-1.5 text-xs text-slate-600 hover:text-indigo-600 bg-slate-50 hover:bg-slate-100 rounded-lg flex items-center space-x-1 transition-colors border border-slate-200"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Refresh</span>
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -462,6 +551,8 @@ export default function FacultyPortalPage() {
                       const entry = schedule.find(
                         (e) => e.day === day && e.period_no === p.no
                       );
+                      const isSYLunch = p.no === 5;
+                      const isTYLunch = p.no === 6;
                       return (
                         <td
                           key={p.no}
@@ -474,7 +565,11 @@ export default function FacultyPortalPage() {
                                   <span className="font-bold text-indigo-950 block truncate max-w-[90px]">
                                     {entry.subject_name}
                                   </span>
-                                  <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-600 text-white font-bold">
+                                  <span
+                                    className={`text-[9px] px-1 py-0.2 rounded font-bold text-white ${
+                                      entry.subject_type === 'Lab' ? 'bg-blue-600' : 'bg-indigo-600'
+                                    }`}
+                                  >
                                     {entry.subject_type}
                                   </span>
                                 </div>
@@ -486,10 +581,107 @@ export default function FacultyPortalPage() {
                                 📍 {entry.room_no}
                               </div>
                             </div>
+                          ) : isSYLunch ? (
+                            <div className="h-full flex flex-col items-center justify-center text-[10px] text-amber-700/80 bg-amber-50/40 rounded p-1">
+                              <span>🍽️ SY Lunch</span>
+                              <span className="text-[9px] text-slate-400">12:30–13:25</span>
+                            </div>
+                          ) : isTYLunch ? (
+                            <div className="h-full flex flex-col items-center justify-center text-[10px] text-amber-700/80 bg-amber-50/40 rounded p-1">
+                              <span>🍽️ TY Lunch</span>
+                              <span className="text-[9px] text-slate-400">13:30–14:25</span>
+                            </div>
                           ) : (
                             <div className="h-full flex items-center justify-center text-slate-300">
                               -
                             </div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Faculty Availability & Shift Preferences Matrix (FR-11) */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 mb-4 gap-2">
+            <div className="flex items-center space-x-2">
+              <ShieldCheck className="w-5 h-5 text-indigo-600" />
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                  <span>My Availability & Scheduling Preferences (FR-11)</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800">
+                    Process 4.0 (D3)
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Click any slot to toggle availability. The automated engine respects unavailable periods during schedule synthesis.
+                </p>
+              </div>
+            </div>
+
+            {availSavedMsg && (
+              <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 animate-fade-in">
+                ✓ {availSavedMsg}
+              </span>
+            )}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                  <th className="p-2.5 w-20">Day</th>
+                  {periodSlots.map((p) => (
+                    <th key={p.no} className="p-2.5 text-center border-l border-slate-100">
+                      P{p.no}<br />
+                      <span className="text-[9px] text-slate-400 font-normal">{p.time.split(' - ')[0]}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {days.map((day) => (
+                  <tr key={day} className="hover:bg-slate-50/40">
+                    <td className="p-2.5 font-bold text-slate-800 bg-slate-50/40">{day}</td>
+                    {periodSlots.map((p) => {
+                      const slotId = `SLOT-${day.toUpperCase()}-${p.no}`;
+                      const isUnavail = unavailableSlots.has(slotId);
+                      const hasClass = schedule.some((e) => e.day === day && e.period_no === p.no);
+
+                      return (
+                        <td key={p.no} className="p-1.5 border-l border-slate-100 text-center">
+                          {hasClass ? (
+                            <span className="block px-2 py-1.5 rounded-md text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 cursor-not-allowed" title="Class already scheduled in this slot">
+                              Teaching
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => toggleSlotAvailability(slotId)}
+                              disabled={availSaving}
+                              className={`w-full px-2 py-1.5 rounded-md text-[10px] font-semibold transition-all border flex items-center justify-center space-x-1 ${
+                                isUnavail
+                                  ? 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                              }`}
+                              title={isUnavail ? 'Marked Unavailable. Click to make Available.' : 'Available. Click to mark Unavailable.'}
+                            >
+                              {isUnavail ? (
+                                <>
+                                  <X className="w-3 h-3 text-rose-600" />
+                                  <span>Unavailable</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                  <span>Available</span>
+                                </>
+                              )}
+                            </button>
                           )}
                         </td>
                       );

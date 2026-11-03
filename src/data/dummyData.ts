@@ -237,10 +237,12 @@ export const initialTimeSlots: TimeSlot[] = [
   { Slot_ID: 'SLOT-SAT-4', Day: 'Sat', Period_No: 4, Start_Time: '11:30', End_Time: '12:25' },
 ];
 
-// Real Faculty-Subject Eligibility
+// Real Faculty-Subject Eligibility across all 31 Institutional Faculty members
 export const initialFacultySubjects: FacultySubject[] = [
+  // Final Year B.Tech Subjects
   { Faculty_ID: 'FAC-RP',  Subject_ID: 'SUB-DM-BTECH' },
   { Faculty_ID: 'FAC-RS',  Subject_ID: 'SUB-DM-BTECH' },
+  { Faculty_ID: 'FAC-NS',  Subject_ID: 'SUB-DM-BTECH' },
   { Faculty_ID: 'FAC-VJN', Subject_ID: 'SUB-PANS' },
   { Faculty_ID: 'FAC-VJN', Subject_ID: 'SUB-PANS-LAB' },
   { Faculty_ID: 'FAC-SB',  Subject_ID: 'SUB-ST' },
@@ -254,6 +256,13 @@ export const initialFacultySubjects: FacultySubject[] = [
   { Faculty_ID: 'FAC-PV',  Subject_ID: 'SUB-MDMV-DS' },
   { Faculty_ID: 'FAC-PV',  Subject_ID: 'SUB-CPAD-LAB' },
   { Faculty_ID: 'FAC-PV',  Subject_ID: 'SUB-OEII' },
+  { Faculty_ID: 'FAC-AM',  Subject_ID: 'SUB-CPAD-LAB' },
+  { Faculty_ID: 'FAC-AM',  Subject_ID: 'SUB-HON-BC' },
+  { Faculty_ID: 'FAC-SSL', Subject_ID: 'SUB-HON-ARVR' },
+  { Faculty_ID: 'FAC-PS',  Subject_ID: 'SUB-MDMV-AI' },
+  { Faculty_ID: 'FAC-PMC', Subject_ID: 'SUB-PROJECT' },
+
+  // TY B.Tech CE Subjects
   { Faculty_ID: 'FAC-AN',  Subject_ID: 'SUB-CC-CE' },
   { Faculty_ID: 'FAC-SCS', Subject_ID: 'SUB-ML-CE' },
   { Faculty_ID: 'FAC-SCS', Subject_ID: 'SUB-ML-LAB-CE' },
@@ -261,14 +270,48 @@ export const initialFacultySubjects: FacultySubject[] = [
   { Faculty_ID: 'FAC-MMC', Subject_ID: 'SUB-CN-LAB-CE' },
   { Faculty_ID: 'FAC-MKS', Subject_ID: 'SUB-PC-CE' },
   { Faculty_ID: 'FAC-MKS', Subject_ID: 'SUB-PC-LAB-CE' },
+  { Faculty_ID: 'FAC-SSS', Subject_ID: 'SUB-HCI-CE' },
+  { Faculty_ID: 'FAC-SSU', Subject_ID: 'SUB-MDM3-ML' },
+  { Faculty_ID: 'FAC-VKS', Subject_ID: 'SUB-PE1-IP' },
+  { Faculty_ID: 'FAC-KKJ', Subject_ID: 'SUB-PE1-OT' },
+
+  // TY B.Tech IT Subjects
+  { Faculty_ID: 'FAC-IM',  Subject_ID: 'SUB-ML-IT' },
+  { Faculty_ID: 'FAC-IM',  Subject_ID: 'SUB-ML-LAB-IT' },
+  { Faculty_ID: 'FAC-MRS', Subject_ID: 'SUB-SE-IT' },
+  { Faculty_ID: 'FAC-PS',  Subject_ID: 'SUB-SE-LAB-IT' },
+  { Faculty_ID: 'FAC-PSS', Subject_ID: 'SUB-PC-IT' },
+  { Faculty_ID: 'FAC-PSS', Subject_ID: 'SUB-PP-LAB-IT' },
+  { Faculty_ID: 'FAC-VBN', Subject_ID: 'SUB-CC-IT' },
+  { Faculty_ID: 'FAC-PS',  Subject_ID: 'SUB-CY-IT' },
+  { Faculty_ID: 'FAC-IM',  Subject_ID: 'SUB-MDM3-DLNN' },
+  { Faculty_ID: 'FAC-AK',  Subject_ID: 'SUB-PE1-HCI' },
+
+  // SY B.Tech CE Subjects
+  { Faculty_ID: 'FAC-SGK', Subject_ID: 'SUB-MCE' },
+  { Faculty_ID: 'FAC-NAS', Subject_ID: 'SUB-DS-CE' },
   { Faculty_ID: 'FAC-MUK', Subject_ID: 'SUB-DAA-CE' },
   { Faculty_ID: 'FAC-MUK', Subject_ID: 'SUB-ALGO-LAB-CE' },
   { Faculty_ID: 'FAC-VDD', Subject_ID: 'SUB-OS-CE' },
   { Faculty_ID: 'FAC-VDD', Subject_ID: 'SUB-OS-LAB-CE' },
-  { Faculty_ID: 'FAC-NAS', Subject_ID: 'SUB-DS-CE' },
-  { Faculty_ID: 'FAC-PMC', Subject_ID: 'SUB-PROJECT' },
-  { Faculty_ID: 'FAC-VBN', Subject_ID: 'SUB-CC-IT' },
-  { Faculty_ID: 'FAC-MRS', Subject_ID: 'SUB-SE-IT' },
+  { Faculty_ID: 'FAC-SAK', Subject_ID: 'SUB-MDM1-DS' },
+  { Faculty_ID: 'FAC-SD',  Subject_ID: 'SUB-PDL-LAB-CE' },
+  { Faculty_ID: 'FAC-SSS', Subject_ID: 'SUB-OST-LAB-CE' },
+  { Faculty_ID: 'FAC-NS',  Subject_ID: 'SUB-MIL' },
+  { Faculty_ID: 'FAC-SGK', Subject_ID: 'SUB-UHV' },
+
+  // SY B.Tech IT Subjects
+  { Faculty_ID: 'FAC-SAK', Subject_ID: 'SUB-MCE' },
+  { Faculty_ID: 'FAC-RP',  Subject_ID: 'SUB-DM-IT' },
+  { Faculty_ID: 'FAC-SSL', Subject_ID: 'SUB-DAA-IT' },
+  { Faculty_ID: 'FAC-SSL', Subject_ID: 'SUB-ALGO-LAB-IT' },
+  { Faculty_ID: 'FAC-SD',  Subject_ID: 'SUB-OS-IT' },
+  { Faculty_ID: 'FAC-SD',  Subject_ID: 'SUB-OS-LAB-IT' },
+  { Faculty_ID: 'FAC-SAK', Subject_ID: 'SUB-MDM1-AIML' },
+  { Faculty_ID: 'FAC-RP',  Subject_ID: 'SUB-PDL-LAB-IT' },
+  { Faculty_ID: 'FAC-PSS', Subject_ID: 'SUB-OST-LAB-IT' },
+  { Faculty_ID: 'FAC-SSL', Subject_ID: 'SUB-MIL' },
+  { Faculty_ID: 'FAC-NS',  Subject_ID: 'SUB-UHV' },
 ];
 
 export const initialFacultyAvailability: FacultyAvailability[] = [

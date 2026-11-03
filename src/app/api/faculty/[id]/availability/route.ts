@@ -22,3 +22,10 @@ export async function PUT(
   }
 }
 
+export async function POST(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  return PUT(req, { params });
+}
+

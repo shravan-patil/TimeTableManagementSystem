@@ -58,10 +58,10 @@ export default function TimetableGenerator({
   const [config, setConfig] = useState<SchedulingConfig>({
     academicTerm: timetable.Academic_Term,
     workingDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
-    periodsPerDay: 6,
+    periodsPerDay: 7,
     periodDurationMins: 60,
-    startTime: '09:00',
-    lunchBreakPeriod: 4,
+    startTime: '08:30',
+    lunchBreakPeriod: 5,
     allowSplitPracticals: true,
     balanceFacultyWorkload: true,
     fixedCommonElectivePeriod: {
@@ -126,6 +126,10 @@ export default function TimetableGenerator({
               activeConfig
             );
             setResult(genResult);
+            // Immediately apply and persist to localStorage so refresh never loses the generated timetable!
+            if (genResult.sessions && genResult.sessions.length > 0) {
+              onApplyGeneratedTimetable(genResult.sessions, genResult);
+            }
             setIsGenerating(false);
             setGenerationProgress('');
           }, 400);
@@ -224,13 +228,13 @@ export default function TimetableGenerator({
                 onClick={() => setResult(null)}
                 className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100/60 rounded-lg transition-colors"
               >
-                Discard
+                Dismiss Banner
               </button>
               <button
                 onClick={() => onApplyGeneratedTimetable(result.sessions, result)}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-md shadow-emerald-700/20 transition-all flex items-center space-x-1.5"
               >
-                <span>Commit & Update Grid</span>
+                <span>Applied & Saved • View Grid</span>
                 <CheckCircle2 className="w-4 h-4" />
               </button>
             </div>
@@ -291,10 +295,9 @@ export default function TimetableGenerator({
                 }
                 className="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none"
               >
-                <option value={4}>4 Periods / day</option>
                 <option value={5}>5 Periods / day</option>
-                <option value={6}>6 Periods / day (Standard)</option>
-                <option value={7}>7 Periods / day</option>
+                <option value={6}>6 Periods / day</option>
+                <option value={7}>7 Periods / day (Standard VJTI Schedule)</option>
               </select>
             </div>
 

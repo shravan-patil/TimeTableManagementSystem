@@ -297,7 +297,16 @@ INSERT INTO faculty_subjects (faculty_id, subject_id) VALUES
 ('FAC-VBN', 'SUB-PDL-LAB-IT'),
 ('FAC-SSL', 'SUB-DAA-IT'),
 ('FAC-SSL', 'SUB-ALGO-LAB-IT'),
-('FAC-PSS', 'SUB-OST-LAB-IT')
+('FAC-PSS', 'SUB-OST-LAB-IT'),
+('FAC-SGK', 'SUB-MCE'),
+('FAC-SAK', 'SUB-MCE'),
+('FAC-SGK', 'SUB-UHV'),
+('FAC-NS',  'SUB-UHV'),
+('FAC-NS',  'SUB-MIL'),
+('FAC-SSL', 'SUB-MIL'),
+('FAC-SSL', 'SUB-HON-ARVR'),
+('FAC-KKJ', 'SUB-PE1-OT'),
+('FAC-PS',  'SUB-MDMV-AI')
 ON CONFLICT DO NOTHING;
 
 -- 10. TIMETABLE CONTAINER

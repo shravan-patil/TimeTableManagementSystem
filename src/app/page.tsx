@@ -48,7 +48,7 @@ import {
 } from '../types/ttms';
 
 import { detectAllConflicts, MasterDataContext } from '../lib/conflictDetector';
-import { SchedulingResult } from '../lib/schedulingAlgorithm';
+import { generateTimetable, SchedulingResult } from '../lib/schedulingAlgorithm';
 
 export default function CoordinatorPortal() {
   // Primary TTMS State
@@ -87,6 +87,32 @@ export default function CoordinatorPortal() {
         if (Array.isArray(parsed) && parsed.length > 0) {
           setSessions(parsed);
         }
+      } else {
+        // First load or fresh session: generate the institutional conflict-free schedule so user never sees an empty timetable
+        const initialGen = generateTimetable(
+          initialTimetable.Timetable_ID,
+          batches,
+          subjects,
+          faculty,
+          facultySubjects,
+          rooms,
+          timeSlots,
+          facultyAvailability,
+          {
+            academicTerm: initialTimetable.Academic_Term,
+            workingDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+            periodsPerDay: 7,
+            periodDurationMins: 60,
+            startTime: '08:30',
+            lunchBreakPeriod: 5,
+            allowSplitPracticals: true,
+            balanceFacultyWorkload: true,
+          }
+        );
+        if (initialGen.sessions && initialGen.sessions.length > 0) {
+          setSessions(initialGen.sessions);
+          localStorage.setItem('vjti_ttms_sessions_v2', JSON.stringify(initialGen.sessions));
+        }
       }
       if (savedTimetable) {
         setTimetable(JSON.parse(savedTimetable));
@@ -106,7 +132,7 @@ export default function CoordinatorPortal() {
     } catch (e) {
       console.error('Failed to restore timetable from localStorage:', e);
     }
-  }, []);
+  }, [batches, subjects, faculty, facultySubjects, rooms, timeSlots, facultyAvailability]);
 
   const handleResetToDefault = () => {
     if (confirm('Are you sure you want to reset the timetable to default seed data? This will clear any generated schedule.')) {
