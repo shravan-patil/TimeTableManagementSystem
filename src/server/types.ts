@@ -4,7 +4,7 @@
 // Reference: Assignment 7 Section 2 & 5
 // =============================================================================
 
-export type UserRole = 'coordinator' | 'faculty' | 'student';
+export type UserRole = 'coordinator' | 'faculty' | 'student' | 'admin';
 
 export type SubjectType = 'Theory' | 'Practical' | 'Elective';
 
@@ -107,6 +107,7 @@ export interface TimeSlotEntity {
 }
 
 export interface FacultyAvailabilityEntity {
+  availability_id?: string;
   faculty_id: string;
   slot_id: string;
   is_available: boolean;

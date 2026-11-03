@@ -19,14 +19,104 @@ export interface MasterDataContext {
 }
 
 /**
- * Detect all conflicts across the current active sessions based on:
- * 1. UNIQUE(Timetable_ID, Faculty_ID, Slot_ID)
- * 2. UNIQUE(Timetable_ID, Room_ID, Slot_ID)
- * 3. UNIQUE(Timetable_ID, Batch_ID, Slot_ID)
- * 4. Room capacity vs Batch strength
- * 5. Room type vs Session type (Labs require Laboratory)
- * 6. Faculty Availability constraints
- * 7. Faculty Max Weekly Load limits
+ * Checks whether a faculty ID is a synthetic/dummy faculty placeholder.
+ * Dummy faculty IDs (e.g. TBA, TBA_*, DUMMY_*) never trigger double-booking conflicts.
+ */
+export function isDummyFaculty(facultyId?: string | null): boolean {
+  if (!facultyId) return true;
+  return facultyId === 'TBA' || facultyId.startsWith('TBA_') || facultyId.startsWith('DUMMY_');
+}
+
+/**
+ * Determines the designated mandatory lunch break period for a cohort.
+ * - SY B.Tech (Year 2): Slot Period 5 (12:30 PM - 1:25 PM)
+ * - TY & Final B.Tech (Year 3 & 4): Slot Period 6 (1:30 PM - 2:25 PM / 14:30)
+ */
+export function getBatchLunchPeriod(batch?: Batch | null, defaultLunchPeriod: number = 5): number {
+  if (!batch) return defaultLunchPeriod;
+  const year = batch.Year;
+  const div = (batch.Division || '').toUpperCase();
+  if (year === 2 || div.includes('SY') || div.includes('SECOND')) {
+    return 5;
+  }
+  if (year === 3 || year === 4 || div.includes('TY') || div.includes('FINAL') || div.includes('BTECH') || div.includes('B.TECH')) {
+    return 6;
+  }
+  return defaultLunchPeriod;
+}
+
+/**
+ * Checks if two subjects belong to the same parallel elective basket (e.g. PE-I, PE-III, PE-IV, MDM, Honors)
+ * or are parallel lab practicals for sub-batches of the same cohort.
+ */
+export function areParallelElectivesOrLabs(
+  s1: Session,
+  s2: Session,
+  subjects: Subject[]
+): boolean {
+  if (s1.Subject_ID === s2.Subject_ID) return false;
+
+  const sub1 = subjects.find((s) => s.Subject_ID === s1.Subject_ID);
+  const sub2 = subjects.find((s) => s.Subject_ID === s2.Subject_ID);
+  if (!sub1 || !sub2) return false;
+
+  // If both are parallel practical labs in different rooms with different faculty
+  if (
+    (sub1.Subject_Type === 'Practical' || sub1.Requires_Lab) &&
+    (sub2.Subject_Type === 'Practical' || sub2.Requires_Lab)
+  ) {
+    if (s1.Room_ID !== s2.Room_ID && s1.Faculty_ID !== s2.Faculty_ID) {
+      return true; // Parallel sub-batch practical lab block
+    }
+  }
+
+  // Check parallel elective tracks
+  const getBasket = (name: string): string | null => {
+    const n = name.toUpperCase();
+    if (n.includes('PE III') || n.includes('PE-III')) return 'PE_III';
+    if (n.includes('PE IV') || n.includes('PE-IV')) return 'PE_IV';
+    if (n.includes('PE I') || n.includes('PE-I')) return 'PE_I';
+    if (n.includes('MDM V') || n.includes('MDM 5') || n.includes('MDM-V')) return 'MDM_V';
+    if (n.includes('MDM III') || n.includes('MDM 3') || n.includes('MDM-III')) return 'MDM_III';
+    if (n.includes('MDM I') || n.includes('MDM 1') || n.includes('MDM-I')) return 'MDM_I';
+    if (n.includes('HONORS') || n.includes('HON:')) return 'HONORS';
+    return null;
+  };
+
+  const b1 = getBasket(sub1.Subject_Name);
+  const b2 = getBasket(sub2.Subject_Name);
+  if (b1 !== null && b1 === b2 && s1.Room_ID !== s2.Room_ID && s1.Faculty_ID !== s2.Faculty_ID) {
+    return true; // Synchronized parallel elective track
+  }
+
+  return false;
+}
+
+/**
+ * Checks if two batch IDs have a parent/child conflict (e.g. parent division vs sub-batch).
+ */
+export function areBatchesConflicting(
+  bId1: string,
+  bId2: string,
+  batchMap: Map<string, Batch>
+): boolean {
+  if (bId1 === bId2) return true;
+
+  const b1 = batchMap.get(bId1);
+  const b2 = batchMap.get(bId2);
+
+  const p1 = b1?.Parent_Batch_ID || (bId1.includes('-') && bId1.split('-').length > 3 ? bId1.substring(0, bId1.lastIndexOf('-')) : null);
+  const p2 = b2?.Parent_Batch_ID || (bId2.includes('-') && bId2.split('-').length > 3 ? bId2.substring(0, bId2.lastIndexOf('-')) : null);
+
+  if (p1 === bId2 || p2 === bId1) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Detect all conflicts across active sessions
  */
 export function detectAllConflicts(
   sessions: Session[],
@@ -49,22 +139,27 @@ export function detectAllConflicts(
     slotToSessions.set(s.Slot_ID, list);
   });
 
-  // Check slot-level clashes
   slotToSessions.forEach((slotSessions, slotId) => {
     const slot = slotMap.get(slotId);
     const day = slot?.Day || 'Mon';
     const periodNo = slot?.Period_No || 1;
 
-    // 1. Check Faculty Double-Booking
+    // 1. Check Faculty Double-Booking (H1)
     const facultySeen = new Map<string, Session[]>();
     slotSessions.forEach((s) => {
+      if (isDummyFaculty(s.Faculty_ID)) return;
       const existing = facultySeen.get(s.Faculty_ID) || [];
       existing.push(s);
       facultySeen.set(s.Faculty_ID, existing);
     });
 
     facultySeen.forEach((dupes, facId) => {
-      if (dupes.length > 1) {
+      const first = dupes[0];
+      const isJointSession = dupes.every(
+        (d) => d.Subject_ID === first.Subject_ID && d.Room_ID === first.Room_ID
+      );
+
+      if (dupes.length > 1 && !isJointSession) {
         const facName = facultyMap.get(facId)?.Faculty_Name || facId;
         const subNames = dupes.map((d) => subjectMap.get(d.Subject_ID)?.Subject_Name || d.Subject_ID).join(' & ');
         conflicts.push({
@@ -82,7 +177,7 @@ export function detectAllConflicts(
       }
     });
 
-    // 2. Check Room Double-Booking
+    // 2. Check Room Double-Booking (H2)
     const roomSeen = new Map<string, Session[]>();
     slotSessions.forEach((s) => {
       const existing = roomSeen.get(s.Room_ID) || [];
@@ -91,7 +186,14 @@ export function detectAllConflicts(
     });
 
     roomSeen.forEach((dupes, rmId) => {
-      if (dupes.length > 1) {
+      const first = dupes[0];
+      const isJointSession = dupes.every(
+        (d) =>
+          d.Subject_ID === first.Subject_ID &&
+          (d.Faculty_ID === first.Faculty_ID || isDummyFaculty(d.Faculty_ID))
+      );
+
+      if (dupes.length > 1 && !isJointSession) {
         const roomName = roomMap.get(rmId)?.Room_No || rmId;
         conflicts.push({
           id: `CONF_RM_${slotId}_${rmId}`,
@@ -108,39 +210,73 @@ export function detectAllConflicts(
       }
     });
 
-    // 3. Check Batch Double-Booking
-    const batchSeen = new Map<string, Session[]>();
-    slotSessions.forEach((s) => {
-      const existing = batchSeen.get(s.Batch_ID) || [];
-      existing.push(s);
-      batchSeen.set(s.Batch_ID, existing);
-    });
+    // 3. Check Batch Double-Booking (H3)
+    for (let i = 0; i < slotSessions.length; i++) {
+      for (let j = i + 1; j < slotSessions.length; j++) {
+        const s1 = slotSessions[i];
+        const s2 = slotSessions[j];
 
-    batchSeen.forEach((dupes, bId) => {
-      // If sessions are of type Lecture or non-split, duplicate batch is a clash
-      if (dupes.length > 1) {
-        const batchName = batchMap.get(bId)?.Division || bId;
-        conflicts.push({
-          id: `CONF_BAT_${slotId}_${bId}`,
-          type: 'BATCH_DOUBLE_BOOKED',
-          severity: 'critical',
-          title: `Batch Double-Booked: ${batchName}`,
-          description: `Division ${batchName} is scheduled for more than one class on ${day} Period ${periodNo}.`,
-          slotId,
-          day,
-          periodNo,
-          sessionIds: dupes.map((d) => d.Session_ID),
-          involvedEntities: { batchId: bId },
-        });
+        if (s1.Batch_ID === s2.Batch_ID) {
+          // Exempt parallel elective tracks and parallel lab blocks
+          if (areParallelElectivesOrLabs(s1, s2, subjects)) {
+            continue;
+          }
+
+          const batchName = batchMap.get(s1.Batch_ID)?.Division || s1.Batch_ID;
+          conflicts.push({
+            id: `CONF_BAT_${slotId}_${s1.Batch_ID}_${s1.Session_ID}_${s2.Session_ID}`,
+            type: 'BATCH_DOUBLE_BOOKED',
+            severity: 'critical',
+            title: `Batch Double-Booked: ${batchName}`,
+            description: `Division ${batchName} is scheduled for more than one class on ${day} Period ${periodNo}.`,
+            slotId,
+            day,
+            periodNo,
+            sessionIds: [s1.Session_ID, s2.Session_ID],
+            involvedEntities: { batchId: s1.Batch_ID },
+          });
+        } else if (areBatchesConflicting(s1.Batch_ID, s2.Batch_ID, batchMap)) {
+          conflicts.push({
+            id: `CONF_BAT_SUB_${slotId}_${s1.Session_ID}_${s2.Session_ID}`,
+            type: 'BATCH_DOUBLE_BOOKED',
+            severity: 'critical',
+            title: `Parent Division / Sub-Batch Collision`,
+            description: `Parent division lecture collides with active sub-batch lab on ${day} Period ${periodNo}.`,
+            slotId,
+            day,
+            periodNo,
+            sessionIds: [s1.Session_ID, s2.Session_ID],
+            involvedEntities: { batchId: s1.Batch_ID },
+          });
+        }
       }
-    });
+    }
 
-    // 4. Check Single-Session constraints (Capacity, Room Type, Availability)
+    // 4. Single-Session Constraints
     slotSessions.forEach((s) => {
       const rm = roomMap.get(s.Room_ID);
       const bt = batchMap.get(s.Batch_ID);
       const sub = subjectMap.get(s.Subject_ID);
       const fac = facultyMap.get(s.Faculty_ID);
+
+      // Staggered Lunch Break Violation
+      if (bt) {
+        const cohortLunch = getBatchLunchPeriod(bt);
+        if (periodNo === cohortLunch) {
+          conflicts.push({
+            id: `CONF_LUNCH_${s.Session_ID}`,
+            type: 'FACULTY_UNAVAILABLE',
+            severity: 'critical',
+            title: `Lunch Break Violation: ${bt.Division}`,
+            description: `Session scheduled during mandatory campus lunch break for ${bt.Division} on ${day} Period ${periodNo}.`,
+            slotId,
+            day,
+            periodNo,
+            sessionIds: [s.Session_ID],
+            involvedEntities: { batchId: s.Batch_ID },
+          });
+        }
+      }
 
       // Room Type Mismatch
       if (s.Session_Type === 'Lab' && rm && rm.Room_Type !== 'Laboratory') {
@@ -158,10 +294,11 @@ export function detectAllConflicts(
         });
       }
 
-      // Capacity Exceeded
+      // Capacity Exceeded (full lecture batch)
       if (rm && bt && bt.Strength > rm.Capacity) {
-        // for full batch lecture
-        if (s.Session_Type === 'Lecture') {
+        // If it's a full batch lecture and not a split elective
+        const isElective = sub?.Subject_Type === 'Elective' || (sub?.Subject_Name || '').includes('PE ');
+        if (s.Session_Type === 'Lecture' && !isElective) {
           conflicts.push({
             id: `CONF_CAP_${s.Session_ID}`,
             type: 'CAPACITY_EXCEEDED',
@@ -178,31 +315,34 @@ export function detectAllConflicts(
       }
 
       // Faculty Availability
-      const unavail = facultyAvailability.find(
-        (fa) => fa.Faculty_ID === s.Faculty_ID && fa.Slot_ID === s.Slot_ID && !fa.Is_Available
-      );
-      if (unavail) {
-        conflicts.push({
-          id: `CONF_UNAVAIL_${s.Session_ID}`,
-          type: 'FACULTY_UNAVAILABLE',
-          severity: 'critical',
-          title: `Faculty Unavailable: ${fac?.Faculty_Name}`,
-          description: `${fac?.Faculty_Name} has marked themselves unavailable on ${day} Period ${periodNo}.`,
-          slotId,
-          day,
-          periodNo,
-          sessionIds: [s.Session_ID],
-          involvedEntities: { facultyId: s.Faculty_ID },
-        });
+      if (!isDummyFaculty(s.Faculty_ID)) {
+        const unavail = facultyAvailability.find(
+          (fa) => fa.Faculty_ID === s.Faculty_ID && fa.Slot_ID === s.Slot_ID && !fa.Is_Available
+        );
+        if (unavail) {
+          conflicts.push({
+            id: `CONF_UNAVAIL_${s.Session_ID}`,
+            type: 'FACULTY_UNAVAILABLE',
+            severity: 'critical',
+            title: `Faculty Unavailable: ${fac?.Faculty_Name}`,
+            description: `${fac?.Faculty_Name} has marked themselves unavailable on ${day} Period ${periodNo}.`,
+            slotId,
+            day,
+            periodNo,
+            sessionIds: [s.Session_ID],
+            involvedEntities: { facultyId: s.Faculty_ID },
+          });
+        }
       }
     });
   });
 
-  // 5. Check Faculty Workload Overload (FR-8)
+  // 5. Faculty Workload Overload Check
   const facultyLoad = new Map<string, number>();
   sessions.forEach((s) => {
+    if (isDummyFaculty(s.Faculty_ID)) return;
     const current = facultyLoad.get(s.Faculty_ID) || 0;
-    facultyLoad.set(s.Faculty_ID, current + 1); // 1 period = 1 load hour
+    facultyLoad.set(s.Faculty_ID, current + 1);
   });
 
   facultyLoad.forEach((hours, facId) => {
@@ -228,14 +368,12 @@ export function detectAllConflicts(
 
 /**
  * Validates a single new or modified session against all other sessions
- * and returns specific error messages if any conflict is introduced.
  */
 export function validateSessionEdit(
   proposedSession: Session,
   allSessions: Session[],
   context: MasterDataContext
 ): { isValid: boolean; messages: string[] } {
-  // Exclude current session being modified
   const otherSessions = allSessions.filter((s) => s.Session_ID !== proposedSession.Session_ID);
   const hypotheticalSessions = [...otherSessions, proposedSession];
 

@@ -1,6 +1,6 @@
 // Data Model Types matching TTMS Requirement Analysis & Data Dictionary
 
-export type UserRole = 'Coordinator' | 'Faculty' | 'Student';
+export type UserRole = 'Coordinator' | 'Faculty' | 'Student' | 'Admin';
 
 export interface User {
   User_ID: string;
@@ -35,6 +35,7 @@ export interface Batch {
   Year: number;     // 2 = SY, 3 = TY, 4 = B.Tech
   Strength: number;
   Department: string;
+  Parent_Batch_ID?: string;
 }
 
 export type RoomType = 'Lecture Hall' | 'Laboratory' | 'Seminar Room';
@@ -187,4 +188,3 @@ export interface SchedulingConfig {
     subjectId: string;
   };
 }
-

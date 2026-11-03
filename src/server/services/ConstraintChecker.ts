@@ -137,23 +137,26 @@ export class ConstraintChecker {
     // Check each period in the span for hard clashes
     for (const slot of spanSlots) {
       // 3. Faculty Unavailability
-      let unavail = db.facultyAvailability.get(`${facultyId}_${slot.slot_id}`);
-      if (!unavail) {
-        unavail = Array.from(db.facultyAvailability.values()).find((fa) => {
-          if (fa.faculty_id !== facultyId) return false;
-          const s = db.timeSlots.get(fa.slot_id);
-          return s && s.day === slot.day && s.period_no === slot.period_no;
-        });
-      }
-      if (unavail && !unavail.is_available) {
-        const fac = db.faculty.get(facultyId);
-        conflicts.push({
-          type: 'FACULTY_UNAVAILABLE',
-          severity: 'critical',
-          message: `Faculty ${fac?.name || facultyId} is marked unavailable on ${slot.day} Period ${slot.period_no}.`,
-          slot_id: slot.slot_id,
-          involved_entities: { faculty_id: facultyId },
-        });
+      const isDummyFaculty = !facultyId || facultyId === 'TBA' || facultyId.startsWith('TBA_') || facultyId.startsWith('DUMMY_');
+      if (!isDummyFaculty) {
+        let unavail = db.facultyAvailability.get(`${facultyId}_${slot.slot_id}`);
+        if (!unavail) {
+          unavail = Array.from(db.facultyAvailability.values()).find((fa) => {
+            if (fa.faculty_id !== facultyId) return false;
+            const s = db.timeSlots.get(fa.slot_id);
+            return s && s.day === slot.day && s.period_no === slot.period_no;
+          });
+        }
+        if (unavail && !unavail.is_available) {
+          const fac = db.faculty.get(facultyId);
+          conflicts.push({
+            type: 'FACULTY_UNAVAILABLE',
+            severity: 'critical',
+            message: `Faculty ${fac?.name || facultyId} is marked unavailable on ${slot.day} Period ${slot.period_no}.`,
+            slot_id: slot.slot_id,
+            involved_entities: { faculty_id: facultyId },
+          });
+        }
       }
 
       // Check against current timetable entries
@@ -167,34 +170,57 @@ export class ConstraintChecker {
           (entrySlot && entrySlot.day === slot.day && entrySlot.period_no === slot.period_no);
 
         if (isSameTime) {
+          const entrySession = db.sessions.get(entry.session_id);
+          const entrySubjectId = entrySession?.subject_id;
+          const isJoint = entrySubjectId && subjectId && entrySubjectId === subjectId;
+
           // 4. Faculty Collision (uq_faculty_slot)
-          if (entry.faculty_id === facultyId) {
-            const fac = db.faculty.get(facultyId);
-            conflicts.push({
-              type: 'FACULTY_DOUBLE_BOOKED',
-              severity: 'critical',
-              message: `Faculty ${fac?.name || facultyId} is already scheduled for session ${entry.session_id} on ${slot.day} Period ${slot.period_no}.`,
-              slot_id: slot.slot_id,
-              entry_ids: [entry.entry_id],
-              involved_entities: { faculty_id: facultyId },
-            });
+          if (!isDummyFaculty && entry.faculty_id === facultyId) {
+            // Joint session cross-branch sharing same room & subject is allowed
+            if (!(isJoint && entry.room_id === roomId)) {
+              const fac = db.faculty.get(facultyId);
+              conflicts.push({
+                type: 'FACULTY_DOUBLE_BOOKED',
+                severity: 'critical',
+                message: `Faculty ${fac?.name || facultyId} is already scheduled for session ${entry.session_id} on ${slot.day} Period ${slot.period_no}.`,
+                slot_id: slot.slot_id,
+                entry_ids: [entry.entry_id],
+                involved_entities: { faculty_id: facultyId },
+              });
+            }
           }
 
           // 5. Room Collision (uq_room_slot)
           if (entry.room_id === roomId) {
-            const r = db.rooms.get(roomId);
-            conflicts.push({
-              type: 'ROOM_DOUBLE_BOOKED',
-              severity: 'critical',
-              message: `Room ${r?.room_no || roomId} is already booked on ${slot.day} Period ${slot.period_no} for session ${entry.session_id}.`,
-              slot_id: slot.slot_id,
-              entry_ids: [entry.entry_id],
-              involved_entities: { room_id: roomId },
-            });
+            // Joint session cross-branch sharing same room, subject & faculty is allowed
+            if (!(isJoint && entry.faculty_id === facultyId)) {
+              const r = db.rooms.get(roomId);
+              conflicts.push({
+                type: 'ROOM_DOUBLE_BOOKED',
+                severity: 'critical',
+                message: `Room ${r?.room_no || roomId} is already booked on ${slot.day} Period ${slot.period_no} for session ${entry.session_id}.`,
+                slot_id: slot.slot_id,
+                entry_ids: [entry.entry_id],
+                involved_entities: { room_id: roomId },
+              });
+            }
           }
 
           // 6. Batch Collision (uq_batch_slot)
-          const clashingBatches = entry.batch_ids.filter((bid) => batchIds.includes(bid));
+          const clashingBatches = entry.batch_ids.filter((bid) => {
+            if (batchIds.includes(bid)) return true;
+            const entryBatch = db.batches.get(bid);
+            for (const newBid of batchIds) {
+              const newBatch = db.batches.get(newBid);
+              if (
+                (entryBatch?.parent_batch_id && entryBatch.parent_batch_id === newBid) ||
+                (newBatch?.parent_batch_id && newBatch.parent_batch_id === bid)
+              ) {
+                return true;
+              }
+            }
+            return false;
+          });
           if (clashingBatches.length > 0) {
             const batchNames = clashingBatches.map((bid) => db.batches.get(bid)?.division || bid).join(', ');
             conflicts.push({
@@ -226,29 +252,55 @@ export class ConstraintChecker {
         const e2 = entries[j];
 
         if (e1.slot_id === e2.slot_id) {
+          const s1 = db.sessions.get(e1.session_id);
+          const s2 = db.sessions.get(e2.session_id);
+          const isJoint = s1 && s2 && s1.subject_id === s2.subject_id;
+
           if (e1.room_id === e2.room_id) {
-            conflicts.push({
-              type: 'ROOM_DOUBLE_BOOKED',
-              severity: 'critical',
-              message: `Duplicate room assignment for ${e1.room_id} at slot ${e1.slot_id}.`,
-              slot_id: e1.slot_id,
-              entry_ids: [e1.entry_id, e2.entry_id],
-              involved_entities: { room_id: e1.room_id },
-            });
+            // Joint cross-branch sessions sharing room and faculty are allowed
+            if (!(isJoint && e1.faculty_id === e2.faculty_id)) {
+              conflicts.push({
+                type: 'ROOM_DOUBLE_BOOKED',
+                severity: 'critical',
+                message: `Duplicate room assignment for ${e1.room_id} at slot ${e1.slot_id}.`,
+                slot_id: e1.slot_id,
+                entry_ids: [e1.entry_id, e2.entry_id],
+                involved_entities: { room_id: e1.room_id },
+              });
+            }
           }
 
-          if (e1.faculty_id === e2.faculty_id) {
-            conflicts.push({
-              type: 'FACULTY_DOUBLE_BOOKED',
-              severity: 'critical',
-              message: `Faculty ${e1.faculty_id} double-booked at slot ${e1.slot_id}.`,
-              slot_id: e1.slot_id,
-              entry_ids: [e1.entry_id, e2.entry_id],
-              involved_entities: { faculty_id: e1.faculty_id },
-            });
+          const isDummy1 = !e1.faculty_id || e1.faculty_id === 'TBA' || e1.faculty_id.startsWith('TBA_') || e1.faculty_id.startsWith('DUMMY_');
+          const isDummy2 = !e2.faculty_id || e2.faculty_id === 'TBA' || e2.faculty_id.startsWith('TBA_') || e2.faculty_id.startsWith('DUMMY_');
+
+          if (!isDummy1 && !isDummy2 && e1.faculty_id === e2.faculty_id) {
+            // Joint cross-branch sessions sharing room and subject are allowed
+            if (!(isJoint && e1.room_id === e2.room_id)) {
+              conflicts.push({
+                type: 'FACULTY_DOUBLE_BOOKED',
+                severity: 'critical',
+                message: `Faculty ${e1.faculty_id} double-booked at slot ${e1.slot_id}.`,
+                slot_id: e1.slot_id,
+                entry_ids: [e1.entry_id, e2.entry_id],
+                involved_entities: { faculty_id: e1.faculty_id },
+              });
+            }
           }
 
-          const clashingBatches = e1.batch_ids.filter((b) => e2.batch_ids.includes(b));
+          const clashingBatches = e1.batch_ids.filter((b) => {
+            if (e2.batch_ids.includes(b)) return true;
+            const b1 = db.batches.get(b);
+            for (const b2Id of e2.batch_ids) {
+              const b2 = db.batches.get(b2Id);
+              if (
+                (b1?.parent_batch_id && b1.parent_batch_id === b2Id) ||
+                (b2?.parent_batch_id && b2.parent_batch_id === b)
+              ) {
+                return true;
+              }
+            }
+            return false;
+          });
           if (clashingBatches.length > 0) {
             conflicts.push({
               type: 'BATCH_DOUBLE_BOOKED',
