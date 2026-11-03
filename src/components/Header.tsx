@@ -9,6 +9,7 @@ interface HeaderProps {
   conflicts: ConflictItem[];
   notifications: Notification[];
   onOpenNotifications: () => void;
+  onResetToDefault?: () => void;
 }
 
 export default function Header({
@@ -16,6 +17,7 @@ export default function Header({
   conflicts,
   notifications,
   onOpenNotifications,
+  onResetToDefault,
 }: HeaderProps) {
   const unreadCount = notifications.filter((n) => !n.Is_Read).length;
 
@@ -83,14 +85,25 @@ export default function Header({
               <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
                 Schedule State
               </span>
-              <div
-                className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
-                  statusColors[timetable.Status] || 'bg-slate-100 text-slate-800 border-slate-300'
-                } flex items-center space-x-1.5 shadow-sm`}
-              >
-                <span className="w-2 h-2 rounded-full bg-current animate-pulse"></span>
-                <span>{timetable.Status}</span>
-                <span className="text-[10px] opacity-75 font-mono">v{timetable.Version_No}</span>
+              <div className="flex items-center space-x-1.5 mt-0.5">
+                <div
+                  className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                    statusColors[timetable.Status] || 'bg-slate-100 text-slate-800 border-slate-300'
+                  } flex items-center space-x-1.5 shadow-sm`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-current animate-pulse"></span>
+                  <span>{timetable.Status}</span>
+                  <span className="text-[10px] opacity-75 font-mono">v{timetable.Version_No}</span>
+                </div>
+                {onResetToDefault && (
+                  <button
+                    onClick={onResetToDefault}
+                    className="px-2 py-0.5 text-[11px] font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-md border border-slate-200 transition-colors"
+                    title="Reset timetable to initial seed data"
+                  >
+                    Reset
+                  </button>
+                )}
               </div>
             </div>
 

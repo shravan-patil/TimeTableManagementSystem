@@ -118,9 +118,62 @@ export default function TimetableGrid({
     SUB_08: 'bg-amber-50 border-amber-200 text-amber-900',
   };
 
+  const isSYBatch = () => {
+    if (filterMode !== 'batch') return false;
+    const b = batchMap.get(selectedBatchId);
+    return Boolean(b && (b.Division.includes('SY') || b.Year === 2));
+  };
+
+  const isTYOrFinalBatch = () => {
+    if (filterMode !== 'batch') return false;
+    const b = batchMap.get(selectedBatchId);
+    return Boolean(b && (b.Division.includes('TY') || b.Division.includes('B.Tech') || b.Year >= 3));
+  };
+
   const renderPeriodCell = (day: DayOfWeek, period: number) => {
     const slot = getSlotById(day, period);
     const currentSessions = slot ? slotSessionMap.get(slot.Slot_ID) || [] : [];
+
+    // Dedicated Staggered Campus Lunch Recess Display
+    if (filterMode === 'batch') {
+      if (isSYBatch() && period === 5 && currentSessions.length === 0) {
+        return (
+          <td
+            key={period}
+            className="p-2 border-r border-slate-200 align-middle min-w-[170px] bg-amber-50/50"
+          >
+            <div className="h-full min-h-[70px] flex flex-col items-center justify-center p-2 rounded-xl bg-amber-100/60 border border-amber-200 text-amber-900 select-none shadow-xs">
+              <span className="text-base">🍽️</span>
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-900">
+                Lunch Recess
+              </span>
+              <span className="text-[10px] text-amber-700 font-semibold mt-0.5">
+                12:30 – 13:25 (SY)
+              </span>
+            </div>
+          </td>
+        );
+      }
+
+      if (isTYOrFinalBatch() && period === 6 && currentSessions.length === 0) {
+        return (
+          <td
+            key={period}
+            className="p-2 border-r border-slate-200 align-middle min-w-[170px] bg-amber-50/50"
+          >
+            <div className="h-full min-h-[70px] flex flex-col items-center justify-center p-2 rounded-xl bg-amber-100/60 border border-amber-200 text-amber-900 select-none shadow-xs">
+              <span className="text-base">🍽️</span>
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-900">
+                Lunch Recess
+              </span>
+              <span className="text-[10px] text-amber-700 font-semibold mt-0.5">
+                13:30 – 14:25 (TY/Final)
+              </span>
+            </div>
+          </td>
+        );
+      }
+    }
 
     return (
       <td
@@ -439,51 +492,36 @@ export default function TimetableGrid({
                   Period 4<br />
                   <span className="text-[10px] text-slate-400 font-normal">11:30 - 12:25</span>
                 </th>
-                {/* Dedicated Mid-Day Lunch Break Column */}
-                <th className="p-3 w-24 text-center border-r border-slate-200 bg-amber-100/70 text-amber-900 select-none">
-                  Lunch Recess<br />
-                  <span className="text-[10px] text-amber-700 font-medium">12:25 - 13:25</span>
-                </th>
-                <th className="p-3 text-center border-r border-slate-200">
+                <th className={`p-3 text-center border-r border-slate-200 ${isSYBatch() ? 'bg-amber-100/70 text-amber-950 font-extrabold' : ''}`}>
                   Period 5<br />
-                  <span className="text-[10px] text-slate-400 font-normal">13:25 - 14:20</span>
+                  <span className={`text-[10px] font-normal ${isSYBatch() ? 'text-amber-800 font-semibold' : 'text-slate-400'}`}>
+                    12:30 - 13:25 {isSYBatch() ? '• SY Lunch' : ''}
+                  </span>
                 </th>
-                <th className="p-3 text-center border-r border-slate-200">
+                <th className={`p-3 text-center border-r border-slate-200 ${isTYOrFinalBatch() ? 'bg-amber-100/70 text-amber-950 font-extrabold' : ''}`}>
                   Period 6<br />
-                  <span className="text-[10px] text-slate-400 font-normal">14:30 - 15:25</span>
+                  <span className={`text-[10px] font-normal ${isTYOrFinalBatch() ? 'text-amber-800 font-semibold' : 'text-slate-400'}`}>
+                    13:30 - 14:25 {isTYOrFinalBatch() ? '• TY/Final Lunch' : ''}
+                  </span>
                 </th>
                 <th className="p-3 text-center">
                   Period 7<br />
-                  <span className="text-[10px] text-slate-400 font-normal">15:30 - 16:25</span>
+                  <span className="text-[10px] text-slate-400 font-normal">14:30 - 15:25</span>
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-xs">
-              {days.map((day) => {
-                return (
-                  <tr key={day} className="hover:bg-slate-50/60 transition-colors">
-                    {/* Day Column */}
-                    <td className="p-3 text-center font-bold text-slate-800 bg-slate-50 border-r border-slate-200">
-                      {day}
-                    </td>
+              {days.map((day) => (
+                <tr key={day} className="hover:bg-slate-50/60 transition-colors">
+                  {/* Day Column */}
+                  <td className="p-3 text-center font-bold text-slate-800 bg-slate-50 border-r border-slate-200">
+                    {day}
+                  </td>
 
-                    {/* Morning Block (Periods 1 to 4) */}
-                    {[1, 2, 3, 4].map((period) => renderPeriodCell(day, period))}
-
-                    {/* Dedicated Campus Lunch Recess Barrier */}
-                    <td className="p-3 text-center bg-amber-50/50 border-r border-slate-200 select-none align-middle w-24">
-                      <div className="flex flex-col items-center justify-center space-y-0.5 text-amber-800/80">
-                        <span className="text-sm">🍽️</span>
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider">Recess</span>
-                        <span className="text-[9px] text-amber-600 font-medium">12:25–13:25</span>
-                      </div>
-                    </td>
-
-                    {/* Afternoon Block (Periods 5 to 7) */}
-                    {[5, 6, 7].map((period) => renderPeriodCell(day, period))}
-                  </tr>
-                );
-              })}
+                  {/* VJTI Campus Periods 1 to 7 */}
+                  {[1, 2, 3, 4, 5, 6, 7].map((period) => renderPeriodCell(day, period))}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

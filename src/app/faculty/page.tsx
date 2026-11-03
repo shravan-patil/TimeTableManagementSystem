@@ -19,7 +19,16 @@ import {
   LogOut,
   Sparkles,
   RefreshCw,
+  ChevronDown,
+  Layers,
+  Award,
 } from 'lucide-react';
+import {
+  initialFaculty,
+  initialRooms,
+  initialSubjects,
+  initialTimeSlots,
+} from '@/data/dummyData';
 
 interface FacultyProfile {
   faculty_id: string;
@@ -62,16 +71,28 @@ interface OpenSubstitution {
   status: string;
 }
 
+interface LeaveRecord {
+  leave_id: string;
+  faculty_id: string;
+  from_date: string;
+  to_date: string;
+  reason: string;
+  status: string;
+  created_at?: string;
+}
+
 export default function FacultyPortalPage() {
   const [faculty, setFaculty] = useState<FacultyProfile>({
     faculty_id: 'FAC-PMC',
     name: 'Prof. P. M. Chawan',
-    department: 'dept-ce',
+    department: 'Computer Engineering',
     max_weekly_load: 16,
   });
 
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
   const [openSubstitutions, setOpenSubstitutions] = useState<OpenSubstitution[]>([]);
+  const [myLeaves, setMyLeaves] = useState<LeaveRecord[]>([]);
+  const [myClaimedSubs, setMyClaimedSubs] = useState<any[]>([]);
   const [claimLoading, setClaimLoading] = useState<string | null>(null);
   const [claimMessage, setClaimMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [fromDate, setFromDate] = useState('2026-10-20');
@@ -81,9 +102,62 @@ export default function FacultyPortalPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const periods = [1, 2, 3, 4, 5, 6, 7];
+  const periodSlots = [
+    { no: 1, time: '08:30 - 09:25' },
+    { no: 2, time: '09:30 - 10:25' },
+    { no: 3, time: '10:30 - 11:25' },
+    { no: 4, time: '11:30 - 12:25' },
+    { no: 5, time: '12:30 - 13:25' },
+    { no: 6, time: '13:30 - 14:25' },
+    { no: 7, time: '14:30 - 15:25' },
+  ];
 
   const fetchSchedule = useCallback(async () => {
+    // 1. Try restoring generated schedule from localStorage
+    try {
+      const saved = localStorage.getItem('vjti_ttms_sessions_v2');
+      if (saved) {
+        const allSessions = JSON.parse(saved);
+        if (Array.isArray(allSessions) && allSessions.length > 0) {
+          const slotMap = new Map(initialTimeSlots.map((ts) => [ts.Slot_ID, ts]));
+          const subMap = new Map(initialSubjects.map((s) => [s.Subject_ID, s]));
+          const roomMap = new Map(initialRooms.map((r) => [r.Room_ID, r]));
+
+          const mySessions = allSessions.filter(
+            (s: any) =>
+              s.Faculty_ID === faculty.faculty_id ||
+              (faculty.faculty_id === 'FAC-PMC' && s.Faculty_ID === 'FAC-001') ||
+              (faculty.faculty_id === 'FAC-001' && s.Faculty_ID === 'FAC-PMC')
+          );
+
+          if (mySessions.length > 0) {
+            const mapped: ScheduleEntry[] = mySessions.map((s: any) => {
+              const slot = slotMap.get(s.Slot_ID);
+              const sub = subMap.get(s.Subject_ID);
+              const room = roomMap.get(s.Room_ID);
+              return {
+                entry_id: s.Session_ID,
+                subject_name: sub?.Subject_Name || s.Subject_ID,
+                subject_code: sub?.Subject_ID || '',
+                subject_type: s.Session_Type || 'Lecture',
+                room_no: room?.Room_No || s.Room_ID,
+                day: slot?.Day || 'Mon',
+                period_no: slot?.Period_No || 1,
+                start_time: slot?.Start_Time || '08:30',
+                end_time: slot?.End_Time || '09:25',
+                batch_ids: [s.Batch_ID],
+              };
+            });
+            setSchedule(mapped);
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('localStorage read error:', e);
+    }
+
+    // 2. Fallback to API route
     try {
       const res = await fetch(`/api/timetable?faculty=${faculty.faculty_id}`);
       const data = await res.json();
@@ -107,10 +181,49 @@ export default function FacultyPortalPage() {
     }
   }, [faculty.faculty_id]);
 
+  const fetchMyLeaves = useCallback(async () => {
+    try {
+      const res = await fetch('/api/leaves');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        const filtered = data.filter(
+          (l: any) =>
+            l.faculty_id === faculty.faculty_id ||
+            (faculty.faculty_id === 'FAC-PMC' && l.faculty_id === 'FAC-001')
+        );
+        setMyLeaves(filtered);
+      }
+    } catch (e) {}
+  }, [faculty.faculty_id]);
+
+  const fetchMyClaimedSubs = useCallback(async () => {
+    try {
+      const res = await fetch('/api/substitutions');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        const claimed = data.filter(
+          (s: any) =>
+            (s.substitute_faculty_id === faculty.faculty_id ||
+              (faculty.faculty_id === 'FAC-PMC' && s.substitute_faculty_id === 'FAC-001')) &&
+            s.status === 'CLAIMED'
+        );
+        setMyClaimedSubs(claimed);
+      }
+    } catch (e) {}
+  }, [faculty.faculty_id]);
+
   useEffect(() => {
     fetchSchedule();
     fetchOpenClaims();
-  }, [fetchSchedule, fetchOpenClaims]);
+    fetchMyLeaves();
+    fetchMyClaimedSubs();
+  }, [fetchSchedule, fetchOpenClaims, fetchMyLeaves, fetchMyClaimedSubs]);
+
+  const assignedHours = schedule.length;
+  const loadPercentage = Math.min(
+    Math.round((assignedHours / faculty.max_weekly_load) * 100),
+    100
+  );
 
   const handleClaim = async (subId: string) => {
     setClaimLoading(subId);
@@ -134,6 +247,7 @@ export default function FacultyPortalPage() {
       });
       fetchSchedule();
       fetchOpenClaims();
+      fetchMyClaimedSubs();
     } catch (err: any) {
       setClaimMessage({
         type: 'error',
@@ -143,12 +257,6 @@ export default function FacultyPortalPage() {
       setClaimLoading(null);
     }
   };
-
-  const assignedHours = schedule.length;
-  const loadPercentage = Math.min(
-    Math.round((assignedHours / faculty.max_weekly_load) * 100),
-    100
-  );
 
   const handleApplyLeave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,9 +279,10 @@ export default function FacultyPortalPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to submit leave');
 
       setLeaveStatus(
-        `Leave submitted successfully. ${data.impactedEntries?.length || 0} class(es) routed to Coordinator for substitution.`
+        `Leave submitted successfully. ${data.impactedEntries?.length || 0} class(es) converted to FCFS open claim opportunities for colleagues.`
       );
       fetchOpenClaims();
+      fetchMyLeaves();
     } catch (err: any) {
       setLeaveStatus(`Error: ${err.message}`);
     } finally {
@@ -206,10 +315,41 @@ export default function FacultyPortalPage() {
           </div>
 
           <div className="flex items-center space-x-4">
-            <div className="text-right hidden sm:block">
-              <div className="text-xs font-semibold text-slate-800">{faculty.name}</div>
-              <div className="text-[11px] text-slate-500">ID: {faculty.faculty_id}</div>
+            {/* Faculty Switcher Profile Dropdown */}
+            <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:inline">
+                Faculty:
+              </span>
+              <select
+                value={faculty.faculty_id}
+                onChange={(e) => {
+                  const sel = initialFaculty.find((f) => f.Faculty_ID === e.target.value);
+                  if (sel) {
+                    setFaculty({
+                      faculty_id: sel.Faculty_ID,
+                      name: sel.Faculty_Name,
+                      department: sel.Department,
+                      max_weekly_load: sel.Max_Weekly_Load,
+                    });
+                  }
+                }}
+                className="text-xs font-bold bg-transparent text-slate-900 outline-none cursor-pointer"
+              >
+                {initialFaculty.map((f) => (
+                  <option key={f.Faculty_ID} value={f.Faculty_ID}>
+                    {f.Faculty_Name} ({f.Department === 'Computer Engineering' ? 'CE' : 'IT'})
+                  </option>
+                ))}
+              </select>
             </div>
+
+            <Link
+              href="/"
+              className="px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors hidden md:inline"
+            >
+              Coordinator View &rarr;
+            </Link>
+
             <Link
               href="/login"
               className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
@@ -270,15 +410,10 @@ export default function FacultyPortalPage() {
               <span className="text-xs font-semibold text-slate-500 uppercase">Department Affiliation</span>
               <UserCheck className="w-4 h-4 text-indigo-600" />
             </div>
-            <div className="text-sm font-bold text-slate-900">Computer Engineering (CE)</div>
+            <div className="text-sm font-bold text-slate-900">{faculty.department}</div>
             <div className="text-xs text-slate-500 mt-1">Status: Regular Full-Time Faculty</div>
-            <div className="mt-3">
-              <Link
-                href="/"
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
-              >
-                Switch to Coordinator View &rarr;
-              </Link>
+            <div className="mt-2 text-xs font-semibold text-indigo-600">
+              ID: {faculty.faculty_id}
             </div>
           </div>
         </div>
@@ -288,16 +423,21 @@ export default function FacultyPortalPage() {
           <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Calendar className="w-4 h-4 text-indigo-600" />
-              <h2 className="text-sm font-bold text-slate-900">
-                My Weekly Teaching Schedule
-              </h2>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">
+                  My Weekly Teaching Schedule: {faculty.name}
+                </h2>
+                <p className="text-[11px] text-slate-500">
+                  Continuous periods across Monday to Saturday • Synchronized with active campus schedule
+                </p>
+              </div>
             </div>
             <button
               onClick={fetchSchedule}
               className="text-xs text-slate-500 hover:text-indigo-600 flex items-center space-x-1"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span>Refresh</span>
+              <span>Refresh Schedule</span>
             </button>
           </div>
 
@@ -306,9 +446,10 @@ export default function FacultyPortalPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600">
                   <th className="p-3 font-semibold w-24">Day</th>
-                  {periods.map((p) => (
-                    <th key={p} className="p-3 font-semibold text-center border-l border-slate-100">
-                      Period {p}
+                  {periodSlots.map((p) => (
+                    <th key={p.no} className="p-3 font-semibold text-center border-l border-slate-100">
+                      Period {p.no}<br />
+                      <span className="text-[10px] text-slate-400 font-normal">{p.time}</span>
                     </th>
                   ))}
                 </tr>
@@ -317,22 +458,27 @@ export default function FacultyPortalPage() {
                 {days.map((day) => (
                   <tr key={day} className="hover:bg-slate-50/50">
                     <td className="p-3 font-bold text-slate-800 bg-slate-50/40">{day}</td>
-                    {periods.map((p) => {
+                    {periodSlots.map((p) => {
                       const entry = schedule.find(
-                        (e) => e.day === day && e.period_no === p
+                        (e) => e.day === day && e.period_no === p.no
                       );
                       return (
                         <td
-                          key={p}
+                          key={p.no}
                           className="p-2 border-l border-slate-100 align-top min-w-[130px] h-20"
                         >
                           {entry ? (
-                            <div className="p-2 rounded-lg bg-indigo-50/80 border border-indigo-200/80 shadow-xs h-full flex flex-col justify-between">
+                            <div className="p-2 rounded-lg bg-indigo-50/90 border border-indigo-200 shadow-xs h-full flex flex-col justify-between">
                               <div>
-                                <span className="font-bold text-indigo-950 block truncate">
-                                  {entry.subject_name}
-                                </span>
-                                <span className="text-[10px] text-slate-600 block">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-bold text-indigo-950 block truncate max-w-[90px]">
+                                    {entry.subject_name}
+                                  </span>
+                                  <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-600 text-white font-bold">
+                                    {entry.subject_type}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-slate-600 block mt-0.5">
                                   {entry.batch_ids.join(', ')}
                                 </span>
                               </div>
@@ -355,7 +501,7 @@ export default function FacultyPortalPage() {
           </div>
         </div>
 
-        {/* First-Come, First-Served (FCFS) Open Lecture Claim Board (Task 3) */}
+        {/* First-Come, First-Served (FCFS) Open Lecture Claim Board */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
             <div className="flex items-center space-x-2">
@@ -368,7 +514,7 @@ export default function FacultyPortalPage() {
                   </span>
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  First-come, first-served claim system for colleague leaves. Clashes and availability conflicts are validated before assignment.
+                  Colleague leaves open instant claim opportunities. Clashes and availability conflicts are validated before assignment.
                 </p>
               </div>
             </div>
@@ -468,80 +614,143 @@ export default function FacultyPortalPage() {
           )}
         </div>
 
-        {/* Leave Request & Substitution Section */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <div className="flex items-center space-x-2 mb-4">
-            <Send className="w-4 h-4 text-indigo-600" />
-            <h2 className="text-sm font-bold text-slate-900">
-              Submit Leave Request & Initiate Substitution (FR-10)
-            </h2>
-          </div>
-
-          {leaveStatus && (
-            <div
-              className={`p-3 rounded-lg text-xs mb-4 ${
-                leaveStatus.startsWith('Error')
-                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                  : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-              }`}
-            >
-              {leaveStatus}
-            </div>
-          )}
-
-          <form onSubmit={handleApplyLeave} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                From Date
-              </label>
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                required
-                className="w-full text-xs p-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-600"
-              />
+        {/* Leave Request Submission & History Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Submit Leave Request */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <div className="flex items-center space-x-2 mb-4">
+              <Send className="w-4 h-4 text-indigo-600" />
+              <h2 className="text-sm font-bold text-slate-900">
+                Submit Leave Request & Initiate Open Claim (FR-10)
+              </h2>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                To Date
-              </label>
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                required
-                className="w-full text-xs p-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-600"
-              />
-            </div>
+            {leaveStatus && (
+              <div
+                className={`p-3 rounded-lg text-xs mb-4 ${
+                  leaveStatus.startsWith('Error')
+                    ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                }`}
+              >
+                {leaveStatus}
+              </div>
+            )}
 
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                Official Reason / Duty Justification
-              </label>
-              <div className="flex space-x-2">
+            <form onSubmit={handleApplyLeave} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    From Date
+                  </label>
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    required
+                    className="w-full text-xs p-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    To Date
+                  </label>
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    required
+                    className="w-full text-xs p-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-600"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  Official Reason / Duty Justification
+                </label>
                 <input
                   type="text"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   required
-                  placeholder="e.g. Conference, Medical, University Duty"
+                  placeholder="e.g. Attending IEEE Conference, Medical Leave"
                   className="w-full text-xs p-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-600"
                 />
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold text-xs transition-colors shrink-0 disabled:opacity-50"
-                >
-                  {isLoading ? 'Submitting...' : 'Submit Leave'}
-                </button>
               </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold text-xs transition-colors disabled:opacity-50"
+              >
+                {isLoading ? 'Submitting & Broadcasting...' : 'Submit Leave & Broadcast Open Slots'}
+              </button>
+            </form>
+          </div>
+
+          {/* My Submitted Leave Requests */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+              <div className="flex items-center space-x-2">
+                <Layers className="w-4 h-4 text-slate-600" />
+                <h3 className="text-sm font-bold text-slate-900">My Leave Applications ({myLeaves.length})</h3>
+              </div>
+              <button onClick={fetchMyLeaves} className="text-slate-400 hover:text-slate-700">
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
             </div>
-          </form>
+
+            {myLeaves.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No leave requests filed for {faculty.name}.
+              </div>
+            ) : (
+              <div className="space-y-2.5 max-h-[220px] overflow-y-auto">
+                {myLeaves.map((l) => (
+                  <div key={l.leave_id} className="p-3 rounded-lg border border-slate-200 bg-slate-50/50 flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-slate-800 text-xs">{l.reason}</div>
+                      <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                        {l.from_date} to {l.to_date}
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                      {l.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* My Claimed Lectures Section */}
+        {myClaimedSubs.length > 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <div className="flex items-center space-x-2 pb-3 border-b border-slate-100 mb-3">
+              <Award className="w-4 h-4 text-emerald-600" />
+              <h3 className="text-sm font-bold text-slate-900">
+                Lectures I Have Claimed as Substitute ({myClaimedSubs.length})
+              </h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {myClaimedSubs.map((sub) => (
+                <div key={sub.sub_id} className="p-3 rounded-xl border border-emerald-200 bg-emerald-50/40 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-bold text-slate-900">Entry ID: {sub.entry_id}</div>
+                    <div className="text-[11px] text-emerald-800 mt-0.5">Date: {sub.sub_date}</div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white">
+                    Claim Confirmed
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
 }
-
