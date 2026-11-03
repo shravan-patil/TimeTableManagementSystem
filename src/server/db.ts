@@ -93,13 +93,13 @@ export class DatabaseStore {
       is_active: true,
     });
 
-    // 3. Users & Faculty Roster (31 Real Faculty from VJTI Timetable)
+    // 3. Users & Faculty Roster (Sanitized + Whitelisted Test Emails)
     const defaultHash = '$2a$10$wN9aEaVbE.yF961o1F3nDeGkP0BlnRzI3aC2o.y1J5rYI06Xv8Mne';
 
     this.users.set('u-coord', {
       user_id: 'u-coord',
       name: 'Dr. V. M. Phalle',
-      email: 'coordinator@vjti.ac.in',
+      email: 'coordinator@dummy.ttms.local',
       password_hash: defaultHash,
       role: 'coordinator',
       department_id: 'dept-ce',
@@ -107,37 +107,37 @@ export class DatabaseStore {
     });
 
     const facultyList = [
-      { id: 'FAC-PMC', name: 'Prof. P. M. Chawan', dept: 'dept-ce', email: 'pmchawan@ce.vjti.ac.in', load: 16 },
-      { id: 'FAC-VBN', name: 'Dr. V. B. Nikam', dept: 'dept-ce', email: 'vbnikam@ce.vjti.ac.in', load: 14 },
-      { id: 'FAC-MRS', name: 'Dr. M. R. Shirole', dept: 'dept-ce', email: 'mrshirole@ce.vjti.ac.in', load: 14 },
-      { id: 'FAC-MMC', name: 'Dr. M. M. Chandane', dept: 'dept-ce', email: 'mmchandane@ce.vjti.ac.in', load: 16 },
-      { id: 'FAC-SCS', name: 'Prof. S. C. Shrawne', dept: 'dept-ce', email: 'scshrawne@ce.vjti.ac.in', load: 16 },
-      { id: 'FAC-VKS', name: 'Dr. V. K. Sambhe', dept: 'dept-ce', email: 'vksambhe@ce.vjti.ac.in', load: 14 },
-      { id: 'FAC-SSU', name: 'Dr. S. S. Udmale', dept: 'dept-ce', email: 'ssudmale@ce.vjti.ac.in', load: 14 },
-      { id: 'FAC-STS', name: 'Dr. S. T. Shingade', dept: 'dept-ce', email: 'stshingade@ce.vjti.ac.in', load: 16 },
-      { id: 'FAC-MUK', name: 'Prof. M. U. Kulkarni', dept: 'dept-ce', email: 'mukulkarni@ce.vjti.ac.in', load: 16 },
-      { id: 'FAC-KKJ', name: 'Prof. K. K. Joshi', dept: 'dept-ce', email: 'kkjoshi@ce.vjti.ac.in', load: 16 },
-      { id: 'FAC-VJN', name: 'Dr. Varshapriya J N', dept: 'dept-ce', email: 'vjn@ce.vjti.ac.in', load: 14 },
-      { id: 'FAC-SSS', name: 'Dr. S. S. Suratkar', dept: 'dept-ce', email: 'sssuratkar@ce.vjti.ac.in', load: 14 },
-      { id: 'FAC-VDD', name: 'Prof. V. D. Dhore', dept: 'dept-ce', email: 'vddhore@ce.vjti.ac.in', load: 16 },
-      { id: 'FAC-SAK', name: 'Prof. S. A. Khedkar', dept: 'dept-ce', email: 'sakhedkar@ce.vjti.ac.in', load: 16 },
-      { id: 'FAC-SSL', name: 'Prof. S. S. Lachure', dept: 'dept-ce', email: 'sslachure@ce.vjti.ac.in', load: 16 },
-      { id: 'FAC-SGK', name: 'Dr. Sopan G. Kolte', dept: 'dept-ce', email: 'sgkolte@ce.vjti.ac.in', load: 14 },
-      { id: 'FAC-NAS', name: 'Dr. Noshin A. Sabuwala', dept: 'dept-ce', email: 'nasabuwala@ce.vjti.ac.in', load: 14 },
-      { id: 'FAC-NS',  name: 'Dr. Neha Singh', dept: 'dept-ce', email: 'nsingh@ce.vjti.ac.in', load: 14 },
-      { id: 'FAC-RS',  name: 'Dr. Ritika Singh', dept: 'dept-ce', email: 'rsingh@ce.vjti.ac.in', load: 14 },
-      { id: 'FAC-SB',  name: 'Prof. Shreekant Bedekar', dept: 'dept-ce', email: 'sbedekar@ce.vjti.ac.in', load: 16 },
-      { id: 'FAC-IM',  name: 'Prof. Isaivani Mathiyalagam', dept: 'dept-it', email: 'imathiyalagam@it.vjti.ac.in', load: 16 },
-      { id: 'FAC-PSS', name: 'Prof. Prachi S Shinde', dept: 'dept-it', email: 'psshinde@it.vjti.ac.in', load: 16 },
-      { id: 'FAC-HCD', name: 'Prof. Harshala C Dalal', dept: 'dept-it', email: 'hcdalal@it.vjti.ac.in', load: 16 },
-      { id: 'FAC-RP',  name: 'Prof. Riddhi Patil', dept: 'dept-it', email: 'rpatil@it.vjti.ac.in', load: 16 },
-      { id: 'FAC-PS',  name: 'Prof. Prajakta Salunkhe', dept: 'dept-it', email: 'psalunkhe@it.vjti.ac.in', load: 16 },
-      { id: 'FAC-AK',  name: 'Prof. Akhhil Kulal', dept: 'dept-it', email: 'akulal@it.vjti.ac.in', load: 16 },
-      { id: 'FAC-AM',  name: 'Prof. Akshay Mhalaskar', dept: 'dept-it', email: 'amhalaskar@it.vjti.ac.in', load: 16 },
-      { id: 'FAC-PV',  name: 'Prof. Pragati Vaishnav', dept: 'dept-it', email: 'pvaishnav@it.vjti.ac.in', load: 16 },
-      { id: 'FAC-SD',  name: 'Prof. Saurabh Dalvi', dept: 'dept-it', email: 'sdalvi@it.vjti.ac.in', load: 16 },
-      { id: 'FAC-MKS', name: 'Prof. Mandar K. Sase', dept: 'dept-it', email: 'msase@it.vjti.ac.in', load: 16 },
-      { id: 'FAC-AN',  name: 'Prof. Ankit Nimbolkar', dept: 'dept-it', email: 'animbolkar@it.vjti.ac.in', load: 16 },
+      { id: 'FAC-PMC', name: 'Prof. P. M. Chawan', dept: 'dept-ce', email: 'tanishparekh03@gmail.com', load: 16 },
+      { id: 'FAC-VBN', name: 'Dr. V. B. Nikam', dept: 'dept-ce', email: 'vbnikam@dummy.ttms.local', load: 14 },
+      { id: 'FAC-MRS', name: 'Dr. M. R. Shirole', dept: 'dept-ce', email: 'mrshirole@dummy.ttms.local', load: 14 },
+      { id: 'FAC-MMC', name: 'Dr. M. M. Chandane', dept: 'dept-ce', email: 'mmchandane@dummy.ttms.local', load: 16 },
+      { id: 'FAC-SCS', name: 'Prof. S. C. Shrawne', dept: 'dept-ce', email: 'scshrawne@dummy.ttms.local', load: 16 },
+      { id: 'FAC-VKS', name: 'Dr. V. K. Sambhe', dept: 'dept-ce', email: 'vksambhe@dummy.ttms.local', load: 14 },
+      { id: 'FAC-SSU', name: 'Dr. S. S. Udmale', dept: 'dept-ce', email: 'ssudmale@dummy.ttms.local', load: 14 },
+      { id: 'FAC-STS', name: 'Dr. S. T. Shingade', dept: 'dept-ce', email: 'stshingade@dummy.ttms.local', load: 16 },
+      { id: 'FAC-MUK', name: 'Prof. M. U. Kulkarni', dept: 'dept-ce', email: 'mukulkarni@dummy.ttms.local', load: 16 },
+      { id: 'FAC-KKJ', name: 'Prof. K. K. Joshi', dept: 'dept-ce', email: 'kkjoshi@dummy.ttms.local', load: 16 },
+      { id: 'FAC-VJN', name: 'Dr. Varshapriya J N', dept: 'dept-ce', email: 'vjn@dummy.ttms.local', load: 14 },
+      { id: 'FAC-SSS', name: 'Dr. S. S. Suratkar', dept: 'dept-ce', email: 'sssuratkar@dummy.ttms.local', load: 14 },
+      { id: 'FAC-VDD', name: 'Prof. V. D. Dhore', dept: 'dept-ce', email: 'vddhore@dummy.ttms.local', load: 16 },
+      { id: 'FAC-SAK', name: 'Prof. S. A. Khedkar', dept: 'dept-ce', email: 'sakhedkar@dummy.ttms.local', load: 16 },
+      { id: 'FAC-SSL', name: 'Prof. S. S. Lachure', dept: 'dept-ce', email: 'sslachure@dummy.ttms.local', load: 16 },
+      { id: 'FAC-SGK', name: 'Dr. Sopan G. Kolte', dept: 'dept-ce', email: 'sgkolte@dummy.ttms.local', load: 14 },
+      { id: 'FAC-NAS', name: 'Dr. Noshin A. Sabuwala', dept: 'dept-ce', email: 'nasabuwala@dummy.ttms.local', load: 14 },
+      { id: 'FAC-NS',  name: 'Dr. Neha Singh', dept: 'dept-ce', email: 'nsingh@dummy.ttms.local', load: 14 },
+      { id: 'FAC-RS',  name: 'Dr. Ritika Singh', dept: 'dept-ce', email: 'rsingh@dummy.ttms.local', load: 14 },
+      { id: 'FAC-SB',  name: 'Prof. Shreekant Bedekar', dept: 'dept-ce', email: 'sbedekar@dummy.ttms.local', load: 16 },
+      { id: 'FAC-IM',  name: 'Prof. Isaivani Mathiyalagam', dept: 'dept-it', email: 'imathiyalagam@dummy.ttms.local', load: 16 },
+      { id: 'FAC-PSS', name: 'Prof. Prachi S Shinde', dept: 'dept-it', email: 'psshinde@dummy.ttms.local', load: 16 },
+      { id: 'FAC-HCD', name: 'Prof. Harshala C Dalal', dept: 'dept-it', email: 'hcdalal@dummy.ttms.local', load: 16 },
+      { id: 'FAC-RP',  name: 'Prof. Riddhi Patil', dept: 'dept-it', email: 'rpatil@dummy.ttms.local', load: 16 },
+      { id: 'FAC-PS',  name: 'Prof. Prajakta Salunkhe', dept: 'dept-it', email: 'psalunkhe@dummy.ttms.local', load: 16 },
+      { id: 'FAC-AK',  name: 'Prof. Akhhil Kulal', dept: 'dept-it', email: 'akulal@dummy.ttms.local', load: 16 },
+      { id: 'FAC-AM',  name: 'Prof. Akshay Mhalaskar', dept: 'dept-it', email: 'amhalaskar@dummy.ttms.local', load: 16 },
+      { id: 'FAC-PV',  name: 'Prof. Pragati Vaishnav', dept: 'dept-it', email: 'pvaishnav@dummy.ttms.local', load: 16 },
+      { id: 'FAC-SD',  name: 'Prof. Saurabh Dalvi', dept: 'dept-it', email: 'sdalvi@dummy.ttms.local', load: 16 },
+      { id: 'FAC-MKS', name: 'Prof. Mandar K. Sase', dept: 'dept-it', email: 'msase@dummy.ttms.local', load: 16 },
+      { id: 'FAC-AN',  name: 'Prof. Ankit Nimbolkar', dept: 'dept-it', email: 'animbolkar@dummy.ttms.local', load: 16 },
     ];
 
     facultyList.forEach((f) => {
@@ -161,13 +161,13 @@ export class DatabaseStore {
       });
     });
 
-    // Compatibility alias: FAC-001 points to Prof. M. A. Patil / FAC-PMC
+    // Compatibility alias: FAC-001 points to Prof. P. M. Chawan
     this.faculty.set('FAC-001', {
       faculty_id: 'FAC-001',
       user_id: 'u-pmc',
       department_id: 'dept-ce',
       name: 'Prof. P. M. Chawan',
-      email: 'pmchawan@ce.vjti.ac.in',
+      email: 'tanishparekh03@gmail.com',
       max_weekly_load: 16,
     });
     this.faculty.set('FAC-002', {
@@ -175,7 +175,7 @@ export class DatabaseStore {
       user_id: 'u-vbn',
       department_id: 'dept-ce',
       name: 'Dr. V. B. Nikam',
-      email: 'vbnikam@ce.vjti.ac.in',
+      email: 'vbnikam@dummy.ttms.local',
       max_weekly_load: 14,
     });
     this.faculty.set('FAC-003', {
@@ -183,15 +183,15 @@ export class DatabaseStore {
       user_id: 'u-mrs',
       department_id: 'dept-ce',
       name: 'Dr. M. R. Shirole',
-      email: 'mrshirole@ce.vjti.ac.in',
+      email: 'mrshirole@dummy.ttms.local',
       max_weekly_load: 14,
     });
 
-    // Student user
+    // Student user (Real Test Email)
     this.users.set('u-stud', {
       user_id: 'u-stud',
-      name: 'VJTI Student',
-      email: 'student@vjti.ac.in',
+      name: 'Tanish Parekh (VJTI Student)',
+      email: 'tanishparekh59@gmail.com',
       password_hash: defaultHash,
       role: 'student',
       department_id: 'dept-ce',
@@ -265,10 +265,10 @@ export class DatabaseStore {
       { p: 3, s: '10:30', e: '11:25' },
       { p: 4, s: '11:30', e: '12:25' },
       { p: 5, s: '12:30', e: '13:25' },
-      { p: 6, s: '14:30', e: '15:25' },
-      { p: 7, s: '15:30', e: '16:25' },
-      { p: 8, s: '16:30', e: '17:25' },
-      { p: 9, s: '17:30', e: '18:25' },
+      { p: 6, s: '13:30', e: '14:25' },
+      { p: 7, s: '14:30', e: '15:25' },
+      { p: 8, s: '15:30', e: '16:25' },
+      { p: 9, s: '16:30', e: '17:25' },
     ];
 
     const days: ('Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat')[] = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

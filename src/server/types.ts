@@ -165,7 +165,7 @@ export interface SubstitutionEntity {
   rescheduled_room_id?: string | null;
   sub_date: string;
   action: SubstitutionAction;
-  status: 'Pending' | 'Approved' | 'Rejected';
+  status: 'Pending' | 'Approved' | 'Rejected' | 'OPEN_FOR_CLAIM' | 'CLAIMED';
   logged_at: string;
 }
 

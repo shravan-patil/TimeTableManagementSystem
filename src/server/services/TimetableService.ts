@@ -6,6 +6,7 @@
 
 import { db } from '../db';
 import { ConstraintChecker } from './ConstraintChecker';
+import { EmailService } from './EmailService';
 import { TimetableEntity, TimetableEntryEntity, ConflictDescriptor } from '../types';
 
 export class TimetableService {
@@ -70,6 +71,70 @@ export class TimetableService {
       changed_on: new Date().toISOString(),
     });
 
+    // Trigger automated notification email to affected students and faculty (Task 2)
+    const oldSlotObj = db.timeSlots.get(oldSlot);
+    const newSlotObj = db.timeSlots.get(params.newSlotId);
+    const facultyObj = db.faculty.get(entry.faculty_id);
+    const roomObj = db.rooms.get(targetRoomId);
+    const subjectObj = db.subjects.get(sess.subject_id);
+    const batchNames = entry.batch_ids
+      .map((bId) => db.batches.get(bId)?.division || bId)
+      .join(', ');
+
+    const recipients = new Set<string>();
+    recipients.add('tanishparekh59@gmail.com');
+    if (facultyObj?.email) recipients.add(facultyObj.email);
+    Array.from(db.users.values())
+      .filter((u) => u.role === 'student' && (!u.department_id || u.department_id === facultyObj?.department_id))
+      .forEach((u) => recipients.add(u.email));
+
+    const subjectName = subjectObj?.name || sess.subject_id;
+    const emailSubject = `[VJTI TTMS Alert] Timetable Updated for ${batchNames} - ${subjectName}`;
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px;">
+        <div style="background-color: #1e3a8a; color: white; padding: 12px 16px; border-radius: 6px; margin-bottom: 20px;">
+          <h2 style="margin: 0; font-size: 18px;">VJTI TTMS: Timetable Reschedule Alert</h2>
+        </div>
+        <p>Dear Faculty and Students,</p>
+        <p>Please note that a timetable adjustment has been finalized for <strong>${batchNames}</strong>.</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px;">
+          <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px; font-weight: bold; width: 35%;">Subject:</td>
+            <td style="padding: 8px;">${subjectName} (${subjectObj?.code || 'N/A'})</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px; font-weight: bold;">Previous Slot:</td>
+            <td style="padding: 8px; color: #dc2626;">${oldSlotObj?.day || ''} Period ${oldSlotObj?.period_no || ''} (${oldSlotObj?.start_time || ''} - ${oldSlotObj?.end_time || ''})</td>
+          </tr>
+          <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px; font-weight: bold;">New Slot:</td>
+            <td style="padding: 8px; color: #16a34a; font-weight: bold;">${newSlotObj?.day || ''} Period ${newSlotObj?.period_no || ''} (${newSlotObj?.start_time || ''} - ${newSlotObj?.end_time || ''})</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px; font-weight: bold;">Room:</td>
+            <td style="padding: 8px;">${roomObj?.room_no || targetRoomId}</td>
+          </tr>
+          <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px; font-weight: bold;">Faculty:</td>
+            <td style="padding: 8px;">${facultyObj?.name || entry.faculty_id}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; font-weight: bold;">Reason:</td>
+            <td style="padding: 8px;">${params.reason || 'Manual timetable optimization'}</td>
+          </tr>
+        </table>
+        <p style="margin-top: 16px; font-size: 13px; color: #64748b;">
+          This is an automated system notification from VJTI TTMS.
+        </p>
+      </div>
+    `;
+
+    void EmailService.sendEmail({
+      to: Array.from(recipients),
+      subject: emailSubject,
+      html: emailHtml,
+    });
+
     return {
       success: true,
       entry,
@@ -126,6 +191,33 @@ export class TimetableService {
         is_read: false,
         sent_on: new Date().toISOString(),
       });
+    });
+
+    // Broadcast email notification to students and faculty (Task 2)
+    const pubRecipients = new Set<string>();
+    pubRecipients.add('tanishparekh59@gmail.com');
+    pubRecipients.add('tanishparekh03@gmail.com');
+    Array.from(db.users.values()).forEach((u) => pubRecipients.add(u.email));
+
+    const pubSubject = `[VJTI TTMS Alert] Timetable (${timetableId}) Finalized & Published`;
+    const pubHtml = `
+      <div style="font-family: Arial, sans-serif; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px;">
+        <div style="background-color: #16a34a; color: white; padding: 12px 16px; border-radius: 6px; margin-bottom: 20px;">
+          <h2 style="margin: 0; font-size: 18px;">VJTI TTMS: Official Timetable Published</h2>
+        </div>
+        <p>Dear Faculty and Students,</p>
+        <p>The academic timetable (<strong>${timetableId}</strong>) has been finalized with 0 critical clashes and officially published to the campus portal.</p>
+        <p>Please check your student / faculty dashboard for your updated weekly schedule.</p>
+        <p style="margin-top: 24px; font-size: 13px; color: #64748b;">
+          VJTI Department of Computer Engineering & Information Technology
+        </p>
+      </div>
+    `;
+
+    void EmailService.sendEmail({
+      to: Array.from(pubRecipients),
+      subject: pubSubject,
+      html: pubHtml,
     });
 
     return {

@@ -111,7 +111,7 @@ export interface LeaveRequest {
 }
 
 export type SubstitutionAction = 'Substituted' | 'Rescheduled';
-export type SubstitutionStatus = 'Suggested' | 'Confirmed' | 'Closed';
+export type SubstitutionStatus = 'Suggested' | 'Confirmed' | 'Closed' | 'OPEN_FOR_CLAIM' | 'CLAIMED';
 
 export interface Substitution {
   Sub_ID: string;

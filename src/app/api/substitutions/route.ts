@@ -2,7 +2,16 @@ import { NextResponse } from 'next/server';
 import { SubstitutionService } from '@/server/services/SubstitutionService';
 import { db } from '@/server/db';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const isOpen = searchParams.get('open') === 'true' || searchParams.get('status') === 'OPEN_FOR_CLAIM';
+  const facultyId = searchParams.get('facultyId') || undefined;
+
+  if (isOpen) {
+    const openSubs = SubstitutionService.getOpenSubstitutions(facultyId);
+    return NextResponse.json(openSubs);
+  }
+
   const substitutions = Array.from(db.substitutions.values());
   return NextResponse.json(substitutions);
 }

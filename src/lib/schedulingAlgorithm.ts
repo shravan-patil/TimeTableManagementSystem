@@ -1174,6 +1174,95 @@ export function generateTimetable(
         }
       }
     }
+
+    // Move 3: Consecutive Streak Breaker (Faculty Fatigue Optimization - Soft Constraint S2)
+    // Detect faculty with > 2 consecutive hours on day d, pick boundary lecture, and attempt relocation
+    if (iter % 3 === 0) {
+      const realFacultyList = faculty.filter((f) => !isDummyFaculty(f.Faculty_ID));
+      if (realFacultyList.length > 0) {
+        const fac = realFacultyList[prng.nextInt(0, realFacultyList.length - 1)];
+        const day = workingDays[prng.nextInt(0, workingDays.length - 1)];
+
+        const facDaySessions = sessions
+          .filter((s) => s.Faculty_ID === fac.Faculty_ID && slotMap.get(s.Slot_ID)?.Day === day)
+          .sort((a, b) => (slotMap.get(a.Slot_ID)?.Period_No || 0) - (slotMap.get(b.Slot_ID)?.Period_No || 0));
+
+        let streakStart = 0;
+        let maxStreak = 1;
+        let currentStreak = 1;
+        for (let i = 1; i < facDaySessions.length; i++) {
+          const prevP = slotMap.get(facDaySessions[i - 1].Slot_ID)?.Period_No || 0;
+          const curP = slotMap.get(facDaySessions[i].Slot_ID)?.Period_No || 0;
+          if (curP === prevP + 1) {
+            currentStreak++;
+            if (currentStreak > maxStreak) {
+              maxStreak = currentStreak;
+              streakStart = i - currentStreak + 1;
+            }
+          } else {
+            currentStreak = 1;
+          }
+        }
+
+        if (maxStreak > 2) {
+          const candidateSess = facDaySessions[streakStart + maxStreak - 1];
+          if (candidateSess && candidateSess.Session_Type === 'Lecture') {
+            const b = batchMap.get(candidateSess.Batch_ID);
+            const targetDay = workingDays.find(
+              (d) => d !== day && sessions.filter((s) => s.Faculty_ID === fac.Faculty_ID && slotMap.get(s.Slot_ID)?.Day === d).length < 2
+            );
+
+            if (targetDay) {
+              const targetLunchP = getBatchLunchPeriod(b);
+              for (const slot of validSlots) {
+                if (slot.Day !== targetDay || slot.Period_No === targetLunchP) continue;
+                if ((occupiedBatch.get(`${candidateSess.Batch_ID}_${slot.Slot_ID}`) || 0) > 0) continue;
+                if ((occupiedFaculty.get(`${fac.Faculty_ID}_${slot.Slot_ID}`) || 0) > 0) continue;
+                if (unavailSet.has(`${fac.Faculty_ID}_${slot.Slot_ID}`)) continue;
+
+                const freeRoom = lectureRooms.find((r) => (occupiedRoom.get(`${r.Room_ID}_${slot.Slot_ID}`) || 0) === 0);
+                if (!freeRoom) continue;
+
+                const origRoom = roomMap.get(candidateSess.Room_ID)!;
+                const origSlot = slotMap.get(candidateSess.Slot_ID)!;
+
+                unbookSession(candidateSess);
+                const moved = bookTrack(
+                  {
+                    subjectId: candidateSess.Subject_ID,
+                    facultyId: candidateSess.Faculty_ID,
+                    batchId: candidateSess.Batch_ID,
+                  },
+                  freeRoom,
+                  slot,
+                  false
+                );
+
+                const newCost = calculateSoftCost(sessions, batches, faculty, timeSlots, subjects);
+                if (newCost.totalCost <= currentCost.totalCost) {
+                  currentCost = newCost;
+                  if (newCost.totalCost < bestCost) bestCost = newCost.totalCost;
+                  break;
+                } else {
+                  // Rollback
+                  unbookSession(moved);
+                  bookTrack(
+                    {
+                      subjectId: candidateSess.Subject_ID,
+                      facultyId: candidateSess.Faculty_ID,
+                      batchId: candidateSess.Batch_ID,
+                    },
+                    origRoom,
+                    origSlot,
+                    false
+                  );
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   const finalCost = calculateSoftCost(sessions, batches, faculty, timeSlots, subjects);
