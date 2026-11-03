@@ -54,7 +54,30 @@ export default function Header({
           </div>
 
           {/* Right Status Controls */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
+            {/* Role View Switcher */}
+            <div className="hidden lg:flex items-center space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <span className="text-[10px] font-bold text-slate-500 uppercase px-2">Role:</span>
+              <a
+                href="/"
+                className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-600 text-white shadow-xs flex items-center space-x-1"
+              >
+                <span>Coordinator</span>
+              </a>
+              <a
+                href="/faculty"
+                className="px-2.5 py-1 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition-all flex items-center space-x-1"
+              >
+                <span>Faculty Portal</span>
+              </a>
+              <a
+                href="/timetable"
+                className="px-2.5 py-1 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition-all flex items-center space-x-1"
+              >
+                <span>Student View</span>
+              </a>
+            </div>
+
             {/* Timetable Status Pill */}
             <div className="hidden md:flex flex-col items-end">
               <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
@@ -72,7 +95,7 @@ export default function Header({
             </div>
 
             {/* Conflict Status Badge */}
-            <div className="hidden lg:flex items-center">
+            <div className="hidden xl:flex items-center">
               {conflicts.length === 0 ? (
                 <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
@@ -109,6 +132,13 @@ export default function Header({
                 <p className="text-xs font-bold text-slate-800 leading-none">Dr. V. M. Phalle</p>
                 <p className="text-[11px] text-slate-500 mt-0.5">TT Committee Coordinator</p>
               </div>
+              <a
+                href="/login"
+                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors ml-1"
+                title="Switch User / Logout"
+              >
+                <span className="text-xs font-bold text-indigo-600 hover:underline">Exit</span>
+              </a>
             </div>
           </div>
         </div>

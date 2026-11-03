@@ -23,7 +23,7 @@ export default function RoomOccupancyView({
 }: RoomOccupancyViewProps) {
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Mon');
   const days: DayOfWeek[] = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const periods = [1, 2, 3, 4, 5, 6];
+  const periods = [1, 2, 3, 4, 5, 6, 7];
 
   const subjectMap = new Map(subjects.map((s) => [s.Subject_ID, s]));
   const batchMap = new Map(batches.map((b) => [b.Batch_ID, b]));

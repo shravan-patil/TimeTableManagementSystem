@@ -43,7 +43,7 @@ export default function WorkloadManager({
   );
 
   const days: DayOfWeek[] = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const periods = [1, 2, 3, 4, 5, 6];
+  const periods = [1, 2, 3, 4, 5, 6, 7];
 
   // Calculate teaching load for each faculty
   const loadMap = new Map<string, number>();

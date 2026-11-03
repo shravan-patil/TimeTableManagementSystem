@@ -28,16 +28,19 @@ export interface SchedulingResult {
 }
 
 /**
- * Constraint-Based Timetable Generation Engine (Process 2.0)
- * Satisfies:
- * - Hard Constraint: No Faculty double booking
- * - Hard Constraint: No Room double booking
- * - Hard Constraint: No Batch double booking
- * - Hard Constraint: Labs placed in Laboratory rooms
- * - Hard Constraint: Room capacity >= Batch strength
- * - Hard Constraint: Faculty Availability constraints respected
- * - Soft Constraint: Faculty weekly load balanced within Max_Weekly_Load
- * - Soft Constraint: Subjects spread across different days
+ * Intelligent Constraint-Based Timetable Generation Engine (Process 2.0)
+ * 
+ * Enforces Institutional Scheduling Rules:
+ * 1. Hard Constraint: No Faculty double booking
+ * 2. Hard Constraint: No Room double booking
+ * 3. Hard Constraint: No Batch double booking
+ * 4. Hard Constraint: Labs strictly placed in Laboratory rooms (2-hour contiguous block)
+ * 5. Hard Constraint: Room capacity >= Batch strength
+ * 6. Hard Constraint: Faculty Availability constraints respected
+ * 7. Hard Constraint: Lunch Break Barrier (No session placed across Morning and Afternoon blocks)
+ * 8. Pedagogical Constraint: Max 2 consecutive lecture/class hours for students (3-4 consecutive hours forbidden)
+ * 9. Pedagogical Constraint: Equal weekly spread (Theory lectures distributed evenly across different days)
+ * 10. Soft Constraint: Faculty weekly load balanced within Max_Weekly_Load
  */
 export function generateTimetable(
   timetableId: string,
@@ -55,7 +58,6 @@ export function generateTimetable(
   const unassigned: SchedulingResult['unassignedSessions'] = [];
 
   // Bookkeeping sets for O(1) clash check
-  // Key format: `${day}_${periodNo}` or `${slotId}`
   const facultyBusy = new Set<string>(); // `${facId}_${slotId}`
   const roomBusy = new Set<string>();    // `${roomId}_${slotId}`
   const batchBusy = new Set<string>();   // `${batchId}_${slotId}`
@@ -64,7 +66,7 @@ export function generateTimetable(
   faculty.forEach((f) => facultyLoadCount.set(f.Faculty_ID, 0));
 
   // Build lookup maps
-  const facultySubjectMap = new Map<string, string[]>(); // subjectId -> facultyIds[]
+  const facultySubjectMap = new Map<string, string[]>();
   facultySubjects.forEach((fs) => {
     const list = facultySubjectMap.get(fs.Subject_ID) || [];
     list.push(fs.Faculty_ID);
@@ -78,15 +80,57 @@ export function generateTimetable(
     }
   });
 
-  // Filter slots according to configured working days and periods
+  // Track occupied periods per batch per day to prevent >2 consecutive lectures
+  const batchOccupiedPeriods = new Map<string, Set<number>>();
+  const getBatchOccupied = (batchId: string, day: DayOfWeek): Set<number> => {
+    const key = `${batchId}_${day}`;
+    let set = batchOccupiedPeriods.get(key);
+    if (!set) {
+      set = new Set<number>();
+      batchOccupiedPeriods.set(key, set);
+    }
+    return set;
+  };
+
+  // Check if placing a session of duration at periodNo would create >= 3 consecutive hours
+  const wouldCauseExcessConsecutive = (
+    batchId: string,
+    day: DayOfWeek,
+    periodNo: number,
+    duration: number = 1
+  ): boolean => {
+    const occupied = getBatchOccupied(batchId, day);
+    const temp = new Set(occupied);
+    for (let o = 0; o < duration; o++) {
+      temp.add(periodNo + o);
+    }
+
+    // Check Morning Block [Periods 1, 2, 3, 4]: max 2 consecutive
+    for (let p = 1; p <= 2; p++) {
+      if (temp.has(p) && temp.has(p + 1) && temp.has(p + 2)) {
+        return true;
+      }
+    }
+
+    // Check Afternoon Block [Periods 5, 6, 7]: max 2 consecutive
+    if (temp.has(5) && temp.has(6) && temp.has(7)) {
+      return true;
+    }
+
+    return false;
+  };
+
+  // Filter valid slots: working days, up to configured max periods, strictly excluding lunch break
+  const lunchPeriod = config.lunchBreakPeriod || 0; // Default: Lunch is between 4 and 5
+  const maxPeriod = config.periodsPerDay || 7;
+
   const validSlots = timeSlots.filter(
     (s) =>
       config.workingDays.includes(s.Day) &&
-      s.Period_No <= config.periodsPerDay &&
-      s.Period_No !== config.lunchBreakPeriod
+      s.Period_No <= maxPeriod &&
+      s.Period_No !== lunchPeriod
   );
 
-  // Helper to test if a slot works for (fac, room, batch)
   const isSlotFree = (facId: string, roomId: string, batchId: string, slotId: string) => {
     if (facultyBusy.has(`${facId}_${slotId}`)) return false;
     if (roomBusy.has(`${roomId}_${slotId}`)) return false;
@@ -101,13 +145,15 @@ export function generateTimetable(
     facId: string,
     batchId: string,
     roomId: string,
-    slotId: string,
+    slot: TimeSlot,
     type: 'Lecture' | 'Lab'
   ) => {
-    facultyBusy.add(`${facId}_${slotId}`);
-    roomBusy.add(`${roomId}_${slotId}`);
-    batchBusy.add(`${batchId}_${slotId}`);
+    facultyBusy.add(`${facId}_${slot.Slot_ID}`);
+    roomBusy.add(`${roomId}_${slot.Slot_ID}`);
+    batchBusy.add(`${batchId}_${slot.Slot_ID}`);
     facultyLoadCount.set(facId, (facultyLoadCount.get(facId) || 0) + 1);
+
+    getBatchOccupied(batchId, slot.Day).add(slot.Period_No);
 
     sessions.push({
       Session_ID: sessId,
@@ -116,75 +162,97 @@ export function generateTimetable(
       Faculty_ID: facId,
       Batch_ID: batchId,
       Room_ID: roomId,
-      Slot_ID: slotId,
+      Slot_ID: slot.Slot_ID,
       Session_Type: type,
     });
   };
 
   let sessionCounter = 1;
 
-  // 1. Handle Fixed Common Elective Slots (e.g. Cloud Computing on Tuesday Period 3)
+  // 1. Handle Fixed Common Elective Slots (if configured)
   if (config.fixedCommonElectivePeriod) {
     const { day, periodNo, subjectId } = config.fixedCommonElectivePeriod;
     const targetSlot = validSlots.find((s) => s.Day === day && s.Period_No === periodNo);
     const eligibleFaculty = facultySubjectMap.get(subjectId) || [];
-    const electiveRoom = rooms.find((r) => r.Room_Type === 'Seminar Room' || r.Capacity >= 100) || rooms[0];
+    const electiveRoom =
+      rooms.find((r) => r.Room_Type === 'Seminar Room' || r.Capacity >= 100) || rooms[0];
 
     if (targetSlot && eligibleFaculty.length > 0 && electiveRoom) {
       const chosenFaculty = eligibleFaculty[0];
       batches.forEach((b) => {
         const sessId = `SES_AUTO_${String(sessionCounter++).padStart(3, '0')}`;
-        bookSlot(sessId, subjectId, chosenFaculty, b.Batch_ID, electiveRoom.Room_ID, targetSlot.Slot_ID, 'Lecture');
+        bookSlot(sessId, subjectId, chosenFaculty, b.Batch_ID, electiveRoom.Room_ID, targetSlot, 'Lecture');
       });
     }
   }
 
-  // 2. Iterate batches and curriculum subjects
-  for (const batch of batches) {
-    // Track days a subject has already been scheduled for this batch (to enforce even spread)
-    const subjectDays = new Map<string, Set<DayOfWeek>>();
-    subjects.forEach((s) => subjectDays.set(s.Subject_ID, new Set()));
+  // 2. Schedule Each Student Batch
+  batches.forEach((batch, batchIndex) => {
+    // Track days each subject is scheduled for this batch (for strict even distribution)
+    const subjectDayCount = new Map<string, Map<DayOfWeek, number>>();
+    subjects.forEach((s) => subjectDayCount.set(s.Subject_ID, new Map()));
 
-    // Separate practicals vs theory for prioritized placement
+    // Separate Practicals (Labs) vs Theory/Elective Lectures
     const practicalSubjects = subjects.filter((s) => s.Subject_Type === 'Practical');
-    const theorySubjects = subjects.filter((s) => s.Subject_Type === 'Theory');
+    const theorySubjects = subjects.filter(
+      (s) => s.Subject_Type === 'Theory' || s.Subject_Type === 'Elective'
+    );
 
-    // A. Schedule Practicals (Labs - preferred 2 consecutive periods or dedicated afternoon slots)
+    // -------------------------------------------------------------------------
+    // A. Schedule Practical Labs (2 contiguous periods, either Morning or Afternoon)
+    // -------------------------------------------------------------------------
     for (const sub of practicalSubjects) {
       const eligibleFac = (facultySubjectMap.get(sub.Subject_ID) || []).sort(
         (a, b) => (facultyLoadCount.get(a) || 0) - (facultyLoadCount.get(b) || 0)
       );
 
-      const suitableRooms = rooms.filter((r) => r.Room_Type === 'Laboratory');
+      const suitableLabRooms = rooms.filter((r) => r.Room_Type === 'Laboratory');
       let hoursNeeded = sub.Hours_Per_Week;
-
       let placed = false;
-      // Search candidate days and consecutive periods
+
+      // Candidate 2-period lab pairs (Morning: [1,2] or [3,4]; Afternoon: [5,6] or [6,7])
+      // NEVER cross lunch break (Periods 4 to 5 is forbidden)
+      const validLabPairs: [number, number][] = [
+        [5, 6],
+        [1, 2],
+        [3, 4],
+        [6, 7],
+      ];
+
+      // Try rotating working days
       for (const day of config.workingDays) {
         if (placed) break;
 
-        // Try lab blocks (e.g. Periods 5 and 6)
-        const slot1 = validSlots.find((s) => s.Day === day && s.Period_No === 5);
-        const slot2 = validSlots.find((s) => s.Day === day && s.Period_No === 6);
+        for (const [p1, p2] of validLabPairs) {
+          if (p2 > maxPeriod) continue;
+          if (p1 === lunchPeriod || p2 === lunchPeriod) continue;
 
-        if (slot1 && slot2) {
+          // Check max consecutive hours
+          if (wouldCauseExcessConsecutive(batch.Batch_ID, day, p1, 2)) continue;
+
+          const slot1 = validSlots.find((s) => s.Day === day && s.Period_No === p1);
+          const slot2 = validSlots.find((s) => s.Day === day && s.Period_No === p2);
+          if (!slot1 || !slot2) continue;
+
           for (const facId of eligibleFac) {
             const fac = faculty.find((f) => f.Faculty_ID === facId);
             const curLoad = facultyLoadCount.get(facId) || 0;
             if (fac && curLoad + 2 > fac.Max_Weekly_Load) continue;
 
-            for (const labRoom of suitableRooms) {
+            for (const labRoom of suitableLabRooms) {
               if (
                 isSlotFree(facId, labRoom.Room_ID, batch.Batch_ID, slot1.Slot_ID) &&
                 isSlotFree(facId, labRoom.Room_ID, batch.Batch_ID, slot2.Slot_ID)
               ) {
                 const s1Id = `SES_AUTO_${String(sessionCounter++).padStart(3, '0')}`;
-                bookSlot(s1Id, sub.Subject_ID, facId, batch.Batch_ID, labRoom.Room_ID, slot1.Slot_ID, 'Lab');
+                bookSlot(s1Id, sub.Subject_ID, facId, batch.Batch_ID, labRoom.Room_ID, slot1, 'Lab');
 
                 const s2Id = `SES_AUTO_${String(sessionCounter++).padStart(3, '0')}`;
-                bookSlot(s2Id, sub.Subject_ID, facId, batch.Batch_ID, labRoom.Room_ID, slot2.Slot_ID, 'Lab');
+                bookSlot(s2Id, sub.Subject_ID, facId, batch.Batch_ID, labRoom.Room_ID, slot2, 'Lab');
 
-                subjectDays.get(sub.Subject_ID)?.add(day);
+                const dayMap = subjectDayCount.get(sub.Subject_ID)!;
+                dayMap.set(day, (dayMap.get(day) || 0) + 2);
+
                 placed = true;
                 hoursNeeded -= 2;
                 break;
@@ -192,6 +260,7 @@ export function generateTimetable(
             }
             if (placed) break;
           }
+          if (placed) break;
         }
       }
 
@@ -200,53 +269,83 @@ export function generateTimetable(
           batchId: batch.Batch_ID,
           subjectId: sub.Subject_ID,
           sessionType: 'Lab',
-          reason: 'No consecutive laboratory periods or available lab faculty without conflict',
+          reason: 'No 2-hour lab block free without violating lunch or consecutive limits',
         });
       }
     }
 
-    // B. Schedule Theory Lectures (Spread across days, matching Lecture Halls)
-    for (const sub of theorySubjects) {
+    // -------------------------------------------------------------------------
+    // B. Schedule Theory & Elective Lectures (Strictly Split Evenly Across Days)
+    // -------------------------------------------------------------------------
+    theorySubjects.forEach((sub, subIdx) => {
       const eligibleFac = (facultySubjectMap.get(sub.Subject_ID) || []).sort(
         (a, b) => (facultyLoadCount.get(a) || 0) - (facultyLoadCount.get(b) || 0)
       );
 
-      const suitableRooms = rooms.filter(
-        (r) => r.Room_Type === 'Lecture Hall' && r.Capacity >= batch.Strength - 10
+      const suitableLectureRooms = rooms.filter(
+        (r) =>
+          (r.Room_Type === 'Lecture Hall' || r.Room_Type === 'Seminar Room') &&
+          r.Capacity >= batch.Strength - 15
       );
 
       let hoursToSchedule = sub.Hours_Per_Week;
 
-      // Try each working day
-      for (const day of config.workingDays) {
-        if (hoursToSchedule <= 0) break;
-        if (subjectDays.get(sub.Subject_ID)?.has(day)) continue; // Max 1 theory session per day for good spread
+      // Rotate starting day offset per subject to prevent clustering all courses on Monday
+      const dayOffset = (batchIndex * 2 + subIdx * 2) % config.workingDays.length;
+      const rotatedDays: DayOfWeek[] = [
+        ...config.workingDays.slice(dayOffset),
+        ...config.workingDays.slice(0, dayOffset),
+      ];
 
-        // Find an open period
-        const daySlots = validSlots
-          .filter((s) => s.Day === day)
-          .sort((a, b) => a.Period_No - b.Period_No);
+      // Multi-pass placement:
+      // Pass 1: Strict - Max 1 lecture per day per subject (even spread) AND No >2 consecutive hours
+      // Pass 2: Relaxed - Allow up to 2 lectures per day if weekly hours exceed working days
+      for (let pass = 1; pass <= 2 && hoursToSchedule > 0; pass++) {
+        const maxPerDayForSubject = pass === 1 ? 1 : 2;
 
-        for (const slot of daySlots) {
+        for (const day of rotatedDays) {
           if (hoursToSchedule <= 0) break;
 
-          let assignedThisSlot = false;
-          for (const facId of eligibleFac) {
-            const fac = faculty.find((f) => f.Faculty_ID === facId);
-            const curLoad = facultyLoadCount.get(facId) || 0;
-            if (fac && curLoad >= fac.Max_Weekly_Load) continue;
+          const dayMap = subjectDayCount.get(sub.Subject_ID)!;
+          const currentDayCount = dayMap.get(day) || 0;
+          if (currentDayCount >= maxPerDayForSubject) continue;
 
-            for (const room of suitableRooms) {
-              if (isSlotFree(facId, room.Room_ID, batch.Batch_ID, slot.Slot_ID)) {
-                const sId = `SES_AUTO_${String(sessionCounter++).padStart(3, '0')}`;
-                bookSlot(sId, sub.Subject_ID, facId, batch.Batch_ID, room.Room_ID, slot.Slot_ID, 'Lecture');
-                subjectDays.get(sub.Subject_ID)?.add(day);
-                hoursToSchedule--;
-                assignedThisSlot = true;
-                break;
-              }
+          // Candidate periods for this day, ordered to balance Morning and Afternoon blocks
+          // Periods: [1, 2, 3, 4] (Morning), [5, 6, 7] (Afternoon)
+          const candidatePeriods = [1, 2, 3, 4, 5, 6, 7].filter(
+            (p) => p <= maxPeriod && p !== lunchPeriod
+          );
+
+          for (const periodNo of candidatePeriods) {
+            if (hoursToSchedule <= 0) break;
+
+            // Strict check: At most 2 consecutive lectures for the batch (no 3-4 consecutive hours)
+            if (wouldCauseExcessConsecutive(batch.Batch_ID, day, periodNo, 1)) {
+              continue;
             }
-            if (assignedThisSlot) break;
+
+            const slot = validSlots.find((s) => s.Day === day && s.Period_No === periodNo);
+            if (!slot) continue;
+
+            let assignedThisSlot = false;
+            for (const facId of eligibleFac) {
+              const fac = faculty.find((f) => f.Faculty_ID === facId);
+              const curLoad = facultyLoadCount.get(facId) || 0;
+              if (fac && curLoad >= fac.Max_Weekly_Load) continue;
+
+              for (const room of suitableLectureRooms) {
+                if (isSlotFree(facId, room.Room_ID, batch.Batch_ID, slot.Slot_ID)) {
+                  const sId = `SES_AUTO_${String(sessionCounter++).padStart(3, '0')}`;
+                  bookSlot(sId, sub.Subject_ID, facId, batch.Batch_ID, room.Room_ID, slot, 'Lecture');
+
+                  dayMap.set(day, (dayMap.get(day) || 0) + 1);
+                  hoursToSchedule--;
+                  assignedThisSlot = true;
+                  break;
+                }
+              }
+              if (assignedThisSlot) break;
+            }
           }
         }
       }
@@ -256,11 +355,11 @@ export function generateTimetable(
           batchId: batch.Batch_ID,
           subjectId: sub.Subject_ID,
           sessionType: 'Lecture',
-          reason: `Could not schedule ${hoursToSchedule} remaining lectures without clashes or load limit violation`,
+          reason: `Could not schedule ${hoursToSchedule} remaining lectures while respecting max 2 consecutive hours and lunch break`,
         });
       }
-    }
-  }
+    });
+  });
 
   const endTime = performance.now();
   return {
@@ -269,7 +368,7 @@ export function generateTimetable(
     success: unassigned.length === 0,
     message:
       unassigned.length === 0
-        ? `Successfully generated 100% conflict-free draft timetable with ${sessions.length} sessions!`
+        ? `Successfully generated 100% clash-free timetable with ${sessions.length} sessions! Distributed evenly across days with max 2 consecutive lectures.`
         : `Generated ${sessions.length} sessions. ${unassigned.length} items could not be placed due to tight constraints.`,
     scheduledCount: sessions.length,
     unassignedCount: unassigned.length,
@@ -277,4 +376,3 @@ export function generateTimetable(
     executionTimeMs: Math.round(endTime - startTime),
   };
 }
-

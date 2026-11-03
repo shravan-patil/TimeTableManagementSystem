@@ -70,7 +70,7 @@ export default function TimetableGrid({
   );
 
   const days: DayOfWeek[] = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const periods = [1, 2, 3, 4, 5, 6];
+  const periods = [1, 2, 3, 4, 5, 6, 7];
 
   // Lookup maps
   const facultyMap = new Map(faculty.map((f) => [f.Faculty_ID, f]));
@@ -116,6 +116,108 @@ export default function TimetableGrid({
     SUB_06: 'bg-purple-50 border-purple-200 text-purple-900',
     SUB_07: 'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-900',
     SUB_08: 'bg-amber-50 border-amber-200 text-amber-900',
+  };
+
+  const renderPeriodCell = (day: DayOfWeek, period: number) => {
+    const slot = getSlotById(day, period);
+    const currentSessions = slot ? slotSessionMap.get(slot.Slot_ID) || [] : [];
+
+    return (
+      <td
+        key={period}
+        className="p-2 border-r border-slate-200 align-top min-w-[170px]"
+      >
+        {currentSessions.length > 0 ? (
+          <div className="space-y-1.5">
+            {currentSessions.map((sess) => {
+              const sub = subjectMap.get(sess.Subject_ID);
+              const fac = facultyMap.get(sess.Faculty_ID);
+              const rm = roomMap.get(sess.Room_ID);
+              const bt = batchMap.get(sess.Batch_ID);
+              const sessConflicts = getSessionConflicts(sess.Session_ID);
+              const hasClash = sessConflicts.length > 0;
+
+              return (
+                <div
+                  key={sess.Session_ID}
+                  onClick={() => onEditSession(sess)}
+                  className={`p-2.5 rounded-xl border transition-all cursor-pointer shadow-sm relative group hover:ring-2 hover:ring-indigo-400 ${
+                    hasClash
+                      ? 'bg-rose-50 border-rose-400 text-rose-950 ring-2 ring-rose-500/50 animate-pulse'
+                      : subjectColorMap[sess.Subject_ID] ||
+                        'bg-slate-50 border-slate-200 text-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-[12px] truncate max-w-[120px]">
+                      {sub?.Subject_Name || sess.Subject_ID}
+                    </span>
+                    <span
+                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                        sess.Session_Type === 'Lab'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-indigo-600 text-white'
+                      }`}
+                    >
+                      {sess.Session_Type}
+                    </span>
+                  </div>
+
+                  <div className="mt-1.5 text-[11px] space-y-0.5 text-slate-600">
+                    {filterMode !== 'faculty' && (
+                      <p className="truncate font-medium">
+                        👤 {fac?.Faculty_Name || sess.Faculty_ID}
+                      </p>
+                    )}
+                    {filterMode !== 'room' && (
+                      <p className="truncate">
+                        🏛️ {rm?.Room_No || sess.Room_ID}
+                      </p>
+                    )}
+                    {filterMode !== 'batch' && (
+                      <p className="truncate font-semibold text-indigo-700">
+                        🎓 {bt?.Division || sess.Batch_ID}
+                      </p>
+                    )}
+                  </div>
+
+                  {hasClash && (
+                    <div className="mt-2 text-[10px] font-bold text-rose-700 bg-rose-100 p-1 rounded flex items-center space-x-1">
+                      <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                      <span className="truncate">
+                        {sessConflicts[0]?.title}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-1 rounded shadow-sm">
+                    <Edit2 className="w-3 h-3 text-slate-600" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="h-full min-h-[70px] flex items-center justify-center group">
+            {slot && (
+              <button
+                onClick={() =>
+                  onAddSessionAtSlot(
+                    slot.Slot_ID,
+                    selectedBatchId || batches[0].Batch_ID
+                  )
+                }
+                className="opacity-0 group-hover:opacity-100 transition-all p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 flex items-center space-x-1 text-[11px] font-semibold"
+                title="Add class in this slot"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add</span>
+              </button>
+            )}
+          </div>
+        )}
+      </td>
+    );
   };
 
   return (
@@ -323,27 +425,36 @@ export default function TimetableGrid({
                 </th>
                 <th className="p-3 text-center border-r border-slate-200">
                   Period 1<br />
-                  <span className="text-[10px] text-slate-400 font-normal">09:00 - 10:00</span>
+                  <span className="text-[10px] text-slate-400 font-normal">08:30 - 09:25</span>
                 </th>
                 <th className="p-3 text-center border-r border-slate-200">
                   Period 2<br />
-                  <span className="text-[10px] text-slate-400 font-normal">10:00 - 11:00</span>
+                  <span className="text-[10px] text-slate-400 font-normal">09:30 - 10:25</span>
                 </th>
                 <th className="p-3 text-center border-r border-slate-200">
                   Period 3<br />
-                  <span className="text-[10px] text-slate-400 font-normal">11:15 - 12:15</span>
+                  <span className="text-[10px] text-slate-400 font-normal">10:30 - 11:25</span>
                 </th>
-                <th className="p-3 text-center border-r border-slate-200 bg-amber-50/50 text-amber-800">
+                <th className="p-3 text-center border-r border-slate-200">
                   Period 4<br />
-                  <span className="text-[10px] text-amber-600 font-normal">12:15 - 13:15 / Lunch</span>
+                  <span className="text-[10px] text-slate-400 font-normal">11:30 - 12:25</span>
+                </th>
+                {/* Dedicated Mid-Day Lunch Break Column */}
+                <th className="p-3 w-24 text-center border-r border-slate-200 bg-amber-100/70 text-amber-900 select-none">
+                  Lunch Recess<br />
+                  <span className="text-[10px] text-amber-700 font-medium">12:25 - 13:25</span>
                 </th>
                 <th className="p-3 text-center border-r border-slate-200">
                   Period 5<br />
-                  <span className="text-[10px] text-slate-400 font-normal">14:00 - 15:00</span>
+                  <span className="text-[10px] text-slate-400 font-normal">13:25 - 14:20</span>
+                </th>
+                <th className="p-3 text-center border-r border-slate-200">
+                  Period 6<br />
+                  <span className="text-[10px] text-slate-400 font-normal">14:30 - 15:25</span>
                 </th>
                 <th className="p-3 text-center">
-                  Period 6<br />
-                  <span className="text-[10px] text-slate-400 font-normal">15:00 - 16:00</span>
+                  Period 7<br />
+                  <span className="text-[10px] text-slate-400 font-normal">15:30 - 16:25</span>
                 </th>
               </tr>
             </thead>
@@ -356,114 +467,20 @@ export default function TimetableGrid({
                       {day}
                     </td>
 
-                    {/* Periods 1 to 6 */}
-                    {periods.map((period) => {
-                      const slot = getSlotById(day, period);
-                      const currentSessions = slot ? slotSessionMap.get(slot.Slot_ID) || [] : [];
-                      const isLunchPeriod = period === 4;
+                    {/* Morning Block (Periods 1 to 4) */}
+                    {[1, 2, 3, 4].map((period) => renderPeriodCell(day, period))}
 
-                      return (
-                        <td
-                          key={period}
-                          className={`p-2 border-r border-slate-200 align-top min-w-[170px] ${
-                            isLunchPeriod ? 'bg-amber-50/20' : ''
-                          }`}
-                        >
-                          {currentSessions.length > 0 ? (
-                            <div className="space-y-1.5">
-                              {currentSessions.map((sess) => {
-                                const sub = subjectMap.get(sess.Subject_ID);
-                                const fac = facultyMap.get(sess.Faculty_ID);
-                                const rm = roomMap.get(sess.Room_ID);
-                                const bt = batchMap.get(sess.Batch_ID);
-                                const sessConflicts = getSessionConflicts(sess.Session_ID);
-                                const hasClash = sessConflicts.length > 0;
+                    {/* Dedicated Campus Lunch Recess Barrier */}
+                    <td className="p-3 text-center bg-amber-50/50 border-r border-slate-200 select-none align-middle w-24">
+                      <div className="flex flex-col items-center justify-center space-y-0.5 text-amber-800/80">
+                        <span className="text-sm">🍽️</span>
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider">Recess</span>
+                        <span className="text-[9px] text-amber-600 font-medium">12:25–13:25</span>
+                      </div>
+                    </td>
 
-                                return (
-                                  <div
-                                    key={sess.Session_ID}
-                                    onClick={() => onEditSession(sess)}
-                                    className={`p-2.5 rounded-xl border transition-all cursor-pointer shadow-sm relative group hover:ring-2 hover:ring-indigo-400 ${
-                                      hasClash
-                                        ? 'bg-rose-50 border-rose-400 text-rose-950 ring-2 ring-rose-500/50 animate-pulse'
-                                        : subjectColorMap[sess.Subject_ID] ||
-                                          'bg-slate-50 border-slate-200 text-slate-800'
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-extrabold text-[12px] truncate max-w-[120px]">
-                                        {sub?.Subject_Name || sess.Subject_ID}
-                                      </span>
-                                      <span
-                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                                          sess.Session_Type === 'Lab'
-                                            ? 'bg-blue-600 text-white'
-                                            : 'bg-indigo-600 text-white'
-                                        }`}
-                                      >
-                                        {sess.Session_Type}
-                                      </span>
-                                    </div>
-
-                                    <div className="mt-1.5 text-[11px] space-y-0.5 text-slate-600">
-                                      {filterMode !== 'faculty' && (
-                                        <p className="truncate font-medium">
-                                          👤 {fac?.Faculty_Name || sess.Faculty_ID}
-                                        </p>
-                                      )}
-                                      {filterMode !== 'room' && (
-                                        <p className="truncate">
-                                          🏛️ {rm?.Room_No || sess.Room_ID}
-                                        </p>
-                                      )}
-                                      {filterMode !== 'batch' && (
-                                        <p className="truncate font-semibold text-indigo-700">
-                                          🎓 {bt?.Division || sess.Batch_ID}
-                                        </p>
-                                      )}
-                                    </div>
-
-                                    {/* Conflict Indicator */}
-                                    {hasClash && (
-                                      <div className="mt-2 text-[10px] font-bold text-rose-700 bg-rose-100 p-1 rounded flex items-center space-x-1">
-                                        <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
-                                        <span className="truncate">
-                                          {sessConflicts[0]?.title}
-                                        </span>
-                                      </div>
-                                    )}
-
-                                    {/* Hover Edit Action */}
-                                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 p-1 rounded shadow-sm">
-                                      <Edit2 className="w-3 h-3 text-slate-600" />
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            /* Empty Cell with Add Action */
-                            <div className="h-full min-h-[70px] flex items-center justify-center group">
-                              {slot && (
-                                <button
-                                  onClick={() =>
-                                    onAddSessionAtSlot(
-                                      slot.Slot_ID,
-                                      selectedBatchId || batches[0].Batch_ID
-                                    )
-                                  }
-                                  className="opacity-0 group-hover:opacity-100 transition-all p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 flex items-center space-x-1 text-[11px] font-semibold"
-                                  title="Add class in this slot"
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                  <span>Add</span>
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                      );
-                    })}
+                    {/* Afternoon Block (Periods 5 to 7) */}
+                    {[5, 6, 7].map((period) => renderPeriodCell(day, period))}
                   </tr>
                 );
               })}
