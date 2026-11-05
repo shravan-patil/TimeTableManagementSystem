@@ -11,6 +11,9 @@ import {
   Building2,
   History,
   FileCheck2,
+  User,
+  GraduationCap,
+  LogOut,
 } from 'lucide-react';
 
 export type NavTab =
@@ -143,8 +146,36 @@ export default function Sidebar({
         })}
       </nav>
 
+      {/* Role Portals Jump */}
+      <div className="p-3 border-t border-slate-800 space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-2 mb-1">
+          Switch Portal View
+        </p>
+        <a
+          href="/faculty"
+          className="w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+        >
+          <User className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+          <span>Faculty Portal (S9)</span>
+        </a>
+        <a
+          href="/timetable"
+          className="w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+        >
+          <GraduationCap className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+          <span>Student Timetable (S10)</span>
+        </a>
+        <a
+          href="/login"
+          className="w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+        >
+          <LogOut className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <span>Switch User / Login (S1)</span>
+        </a>
+      </div>
+
       {/* Footer Info */}
-      <div className="p-4 border-t border-slate-800 text-xs text-slate-500 space-y-1">
+      <div className="p-3 border-t border-slate-800 text-xs text-slate-500 space-y-1">
         <div className="flex items-center space-x-1.5 text-slate-400">
           <FileCheck2 className="w-3.5 h-3.5 text-emerald-400" />
           <span>System Compliant: SRS v1.0</span>

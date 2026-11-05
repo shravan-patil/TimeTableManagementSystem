@@ -166,4 +166,3 @@ export function findEligibleSubstitutes(
   // Sort descending by score
   return candidates.sort((a, b) => b.score - a.score);
 }
-

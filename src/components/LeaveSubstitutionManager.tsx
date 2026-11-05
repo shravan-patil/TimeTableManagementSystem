@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   Faculty,
   LeaveRequest,
@@ -150,6 +151,30 @@ export default function LeaveSubstitutionManager({
           <Plus className="w-4 h-4" />
           <span>Record Faculty Leave (FR-10)</span>
         </button>
+      </div>
+
+      {/* FCFS Marketplace Overview Banner (Task 3) */}
+      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center space-x-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-sm">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-emerald-950 flex items-center space-x-2">
+              <span>Active First-Come, First-Served (FCFS) Claim Marketplace</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-200 text-emerald-900">Live</span>
+            </h4>
+            <p className="text-[11px] text-emerald-800 mt-0.5">
+              Colleague leaves automatically generate open claim opportunities. Faculty can claim them directly on their personal portal without waiting for manual coordinator re-assignment.
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/faculty"
+          className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 shadow-sm shrink-0 self-start sm:self-auto transition-colors"
+        >
+          <span>Open Faculty Claim Portal &rarr;</span>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

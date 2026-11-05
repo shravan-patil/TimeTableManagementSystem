@@ -1,0 +1,50 @@
+# =============================================================================
+# VJTI Time Table Management System (TTMS)
+# Docker Compose Orchestration: PostgreSQL 16 + Next.js Modular Monolith
+# Reference: Assignment 7 Section 3.5 (Request Flow and Deployment)
+# =============================================================================
+
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: vjti_ttms_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vjti_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vjti_secure_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-vjti_ttms}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vjti_admin} -d ${POSTGRES_DB:-vjti_ttms}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vjti_ttms_app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-vjti_admin}:${POSTGRES_PASSWORD:-vjti_secure_2026}@db:5432/${POSTGRES_DB:-vjti_ttms}?schema=public
+      - JWT_SECRET=${JWT_SECRET:-vjti-ttms-super-secret-production-key-2026}
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+    driver: local
+

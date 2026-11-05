@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Header from '../components/Header';
 import Sidebar, { NavTab } from '../components/Sidebar';
 import DashboardOverview from '../components/DashboardOverview';
@@ -48,7 +48,7 @@ import {
 } from '../types/ttms';
 
 import { detectAllConflicts, MasterDataContext } from '../lib/conflictDetector';
-import { SchedulingResult } from '../lib/schedulingAlgorithm';
+import { generateTimetable, SchedulingResult } from '../lib/schedulingAlgorithm';
 
 export default function CoordinatorPortal() {
   // Primary TTMS State
@@ -73,6 +73,81 @@ export default function CoordinatorPortal() {
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [showNotificationModal, setShowNotificationModal] = useState<boolean>(false);
+
+  // Restore generated timetable & logs from localStorage upon page refresh
+  useEffect(() => {
+    try {
+      const savedSessions = localStorage.getItem('vjti_ttms_sessions_v2');
+      const savedTimetable = localStorage.getItem('vjti_ttms_timetable_v2');
+      const savedLogs = localStorage.getItem('vjti_ttms_changelogs_v2');
+      const savedNotifs = localStorage.getItem('vjti_ttms_notifications_v2');
+
+      if (savedSessions) {
+        const parsed = JSON.parse(savedSessions);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSessions(parsed);
+        }
+      } else {
+        // First load or fresh session: generate the institutional conflict-free schedule so user never sees an empty timetable
+        const initialGen = generateTimetable(
+          initialTimetable.Timetable_ID,
+          batches,
+          subjects,
+          faculty,
+          facultySubjects,
+          rooms,
+          timeSlots,
+          facultyAvailability,
+          {
+            academicTerm: initialTimetable.Academic_Term,
+            workingDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+            periodsPerDay: 7,
+            periodDurationMins: 60,
+            startTime: '08:30',
+            lunchBreakPeriod: 5,
+            allowSplitPracticals: true,
+            balanceFacultyWorkload: true,
+          }
+        );
+        if (initialGen.sessions && initialGen.sessions.length > 0) {
+          setSessions(initialGen.sessions);
+          localStorage.setItem('vjti_ttms_sessions_v2', JSON.stringify(initialGen.sessions));
+        }
+      }
+      if (savedTimetable) {
+        setTimetable(JSON.parse(savedTimetable));
+      }
+      if (savedLogs) {
+        const parsedLogs = JSON.parse(savedLogs);
+        if (Array.isArray(parsedLogs) && parsedLogs.length > 0) {
+          setChangeLogs(parsedLogs);
+        }
+      }
+      if (savedNotifs) {
+        const parsedNotifs = JSON.parse(savedNotifs);
+        if (Array.isArray(parsedNotifs) && parsedNotifs.length > 0) {
+          setNotifications(parsedNotifs);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to restore timetable from localStorage:', e);
+    }
+  }, [batches, subjects, faculty, facultySubjects, rooms, timeSlots, facultyAvailability]);
+
+  const handleResetToDefault = () => {
+    if (confirm('Are you sure you want to reset the timetable to default seed data? This will clear any generated schedule.')) {
+      try {
+        localStorage.removeItem('vjti_ttms_sessions_v2');
+        localStorage.removeItem('vjti_ttms_timetable_v2');
+        localStorage.removeItem('vjti_ttms_changelogs_v2');
+        localStorage.removeItem('vjti_ttms_notifications_v2');
+      } catch (e) {}
+      setSessions(initialSessions);
+      setTimetable(initialTimetable);
+      setChangeLogs(initialChangeLogs);
+      setNotifications(initialNotifications);
+    }
+  };
 
   // Master Data Context for validation
   const masterDataContext: MasterDataContext = useMemo(
@@ -125,6 +200,9 @@ export default function CoordinatorPortal() {
     };
 
     setTimetable(updatedTimetable);
+    try {
+      localStorage.setItem('vjti_ttms_timetable_v2', JSON.stringify(updatedTimetable));
+    } catch (e) {}
 
     // Audit Logging (D5)
     const log: ChangeLog = {
@@ -136,7 +214,11 @@ export default function CoordinatorPortal() {
       Changed_By: 'Dr. V. M. Phalle (Coordinator)',
       Changed_On: getTimestamp(),
     };
-    setChangeLogs([log, ...changeLogs]);
+    const nextLogs = [log, ...changeLogs];
+    setChangeLogs(nextLogs);
+    try {
+      localStorage.setItem('vjti_ttms_changelogs_v2', JSON.stringify(nextLogs));
+    } catch (e) {}
 
     // Send Broadcast Notification (D6 / FR-15)
     if (isPublished) {
@@ -148,7 +230,11 @@ export default function CoordinatorPortal() {
         Sent_On: getTimestamp(),
         Is_Read: false,
       };
-      setNotifications([notif, ...notifications]);
+      const nextNotifs = [notif, ...notifications];
+      setNotifications(nextNotifs);
+      try {
+        localStorage.setItem('vjti_ttms_notifications_v2', JSON.stringify(nextNotifs));
+      } catch (e) {}
     }
   };
 
@@ -157,12 +243,14 @@ export default function CoordinatorPortal() {
     newSessions: Session[],
     summary: SchedulingResult
   ) => {
-    setSessions(newSessions);
-    setTimetable({
+    const updatedTT = {
       ...timetable,
-      Status: 'Draft Generated',
+      Status: 'Draft Generated' as TimetableStatus,
       Version_No: timetable.Version_No + 1,
-    });
+    };
+
+    setSessions(newSessions);
+    setTimetable(updatedTT);
 
     const log: ChangeLog = {
       Log_ID: `LOG_${String(changeLogs.length + 1).padStart(3, '0')}`,
@@ -173,7 +261,8 @@ export default function CoordinatorPortal() {
       Changed_By: 'Dr. V. M. Phalle',
       Changed_On: getTimestamp(),
     };
-    setChangeLogs([log, ...changeLogs]);
+    const nextLogs = [log, ...changeLogs];
+    setChangeLogs(nextLogs);
 
     const notif: Notification = {
       Notif_ID: `NOTIF_${String(notifications.length + 1).padStart(3, '0')}`,
@@ -183,7 +272,18 @@ export default function CoordinatorPortal() {
       Sent_On: getTimestamp(),
       Is_Read: false,
     };
-    setNotifications([notif, ...notifications]);
+    const nextNotifs = [notif, ...notifications];
+    setNotifications(nextNotifs);
+
+    // Save to localStorage for refresh persistence
+    try {
+      localStorage.setItem('vjti_ttms_sessions_v2', JSON.stringify(newSessions));
+      localStorage.setItem('vjti_ttms_timetable_v2', JSON.stringify(updatedTT));
+      localStorage.setItem('vjti_ttms_changelogs_v2', JSON.stringify(nextLogs));
+      localStorage.setItem('vjti_ttms_notifications_v2', JSON.stringify(nextNotifs));
+    } catch (e) {
+      console.error('Failed to save to localStorage:', e);
+    }
 
     setActiveTab('grid');
   };
@@ -193,13 +293,16 @@ export default function CoordinatorPortal() {
     const isNew = !sessions.some((s) => s.Session_ID === updatedSession.Session_ID);
     const oldSession = sessions.find((s) => s.Session_ID === updatedSession.Session_ID);
 
+    let nextSessions: Session[];
     if (isNew) {
-      setSessions([...sessions, updatedSession]);
+      nextSessions = [...sessions, updatedSession];
     } else {
-      setSessions(
-        sessions.map((s) => (s.Session_ID === updatedSession.Session_ID ? updatedSession : s))
-      );
+      nextSessions = sessions.map((s) => (s.Session_ID === updatedSession.Session_ID ? updatedSession : s));
     }
+    setSessions(nextSessions);
+    try {
+      localStorage.setItem('vjti_ttms_sessions_v2', JSON.stringify(nextSessions));
+    } catch (e) {}
 
     // Determine change description
     let changeDesc = `Session ${updatedSession.Session_ID} added/modified`;
@@ -378,6 +481,7 @@ export default function CoordinatorPortal() {
         conflicts={conflicts}
         notifications={notifications}
         onOpenNotifications={() => setShowNotificationModal(true)}
+        onResetToDefault={handleResetToDefault}
       />
 
       <div className="flex-1 flex overflow-hidden">

@@ -1,0 +1,315 @@
+// =============================================================================
+// VJTI Time Table Management System (TTMS)
+// Prisma ORM Schema - Normalized 3NF PostgreSQL Data Model
+// Reference: Assignment 7 Section 2 (Data Design, Tables 2, 3, and 4)
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Department {
+  department_id String         @id @map("department_id")
+  name          String
+  code          String         @unique
+  created_at    DateTime       @default(now()) @map("created_at")
+  users         User[]
+  academicTerms AcademicTerm[]
+  faculty       Faculty[]
+  subjects      Subject[]
+  batches       Batch[]
+
+  @@map("departments")
+}
+
+model User {
+  user_id       String       @id @map("user_id")
+  name          String
+  email         String       @unique
+  password_hash String       @map("password_hash")
+  role          String
+  department_id String?      @map("department_id")
+  created_at    DateTime     @default(now()) @map("created_at")
+  department    Department?  @relation(fields: [department_id], references: [department_id], onDelete: SetNull)
+  faculty       Faculty?
+  timetables    Timetable[]  @relation("CreatedTimetables")
+  changeLogs    ChangeLog[]  @relation("AuthorChangeLogs")
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model AcademicTerm {
+  term_id       String      @id @map("term_id")
+  name          String
+  department_id String      @map("department_id")
+  start_date    DateTime    @map("start_date")
+  end_date      DateTime    @map("end_date")
+  is_active     Boolean     @default(true) @map("is_active")
+  created_at    DateTime    @default(now()) @map("created_at")
+  department    Department  @relation(fields: [department_id], references: [department_id], onDelete: Restrict)
+  timetables    Timetable[]
+
+  @@map("academic_terms")
+}
+
+model Faculty {
+  faculty_id      String                @id @map("faculty_id")
+  user_id         String?               @unique @map("user_id")
+  department_id   String                @map("department_id")
+  name            String
+  email           String                @unique
+  max_weekly_load Int                   @map("max_weekly_load")
+  created_at      DateTime              @default(now()) @map("created_at")
+  user            User?                 @relation(fields: [user_id], references: [user_id], onDelete: SetNull)
+  department      Department            @relation(fields: [department_id], references: [department_id], onDelete: Restrict)
+  subjects        FacultySubject[]
+  availability    FacultyAvailability[]
+  sessions        Session[]
+  entries         TimetableEntry[]
+  leaves          LeaveRequest[]
+  substitutions   Substitution[]        @relation("SubstituteFaculty")
+
+  @@map("faculty")
+}
+
+model Subject {
+  subject_id     String           @id @map("subject_id")
+  department_id  String           @map("department_id")
+  code           String           @unique
+  name           String
+  type           String
+  credits        Int
+  hours_per_week Int              @map("hours_per_week")
+  requires_lab   Boolean          @default(false) @map("requires_lab")
+  created_at     DateTime         @default(now()) @map("created_at")
+  department     Department       @relation(fields: [department_id], references: [department_id], onDelete: Restrict)
+  faculty        FacultySubject[]
+  sessions       Session[]
+
+  @@map("subjects")
+}
+
+model FacultySubject {
+  faculty_id String  @map("faculty_id")
+  subject_id String  @map("subject_id")
+  faculty    Faculty @relation(fields: [faculty_id], references: [faculty_id], onDelete: Cascade)
+  subject    Subject @relation(fields: [subject_id], references: [subject_id], onDelete: Cascade)
+
+  @@id([faculty_id, subject_id])
+  @@map("faculty_subjects")
+}
+
+model Batch {
+  batch_id         String         @id @map("batch_id")
+  department_id    String         @map("department_id")
+  division         String
+  year             Int
+  strength         Int
+  parent_batch_id  String?        @map("parent_batch_id")
+  created_at       DateTime       @default(now()) @map("created_at")
+  department       Department     @relation(fields: [department_id], references: [department_id], onDelete: Restrict)
+  parentBatch      Batch?         @relation("SubBatches", fields: [parent_batch_id], references: [batch_id], onDelete: Cascade)
+  childBatches     Batch[]        @relation("SubBatches")
+  sessionBatches   SessionBatch[]
+  entryBatches     EntryBatch[]
+
+  @@map("batches")
+}
+
+model Room {
+  room_id    String           @id @map("room_id")
+  room_no    String           @unique @map("room_no")
+  capacity   Int
+  type       String
+  created_at DateTime         @default(now()) @map("created_at")
+  sessions   Session[]
+  entries    TimetableEntry[]
+  rescheduledSubstitutions Substitution[] @relation("RescheduledRoom")
+
+  @@map("rooms")
+}
+
+model TimeSlot {
+  slot_id      String                @id @map("slot_id")
+  day          String
+  period_no    Int                   @map("period_no")
+  start_time   String                @map("start_time")
+  end_time     String                @map("end_time")
+  availability FacultyAvailability[]
+  entries      TimetableEntry[]
+  entryBatches EntryBatch[]
+  rescheduledSubstitutions Substitution[] @relation("RescheduledSlot")
+
+  @@unique([day, period_no], name: "uq_day_period")
+  @@map("time_slots")
+}
+
+model FacultyAvailability {
+  faculty_id   String   @map("faculty_id")
+  slot_id      String   @map("slot_id")
+  is_available Boolean  @default(true) @map("is_available")
+  faculty      Faculty  @relation(fields: [faculty_id], references: [faculty_id], onDelete: Cascade)
+  slot         TimeSlot @relation(fields: [slot_id], references: [slot_id], onDelete: Cascade)
+
+  @@id([faculty_id, slot_id])
+  @@map("faculty_availability")
+}
+
+model Timetable {
+  timetable_id String           @id @map("timetable_id")
+  term_id      String           @map("term_id")
+  version_no   Int              @default(1) @map("version_no")
+  status       String
+  created_by   String           @map("created_by")
+  created_at   DateTime         @default(now()) @map("created_at")
+  published_at DateTime?        @map("published_at")
+  term         AcademicTerm     @relation(fields: [term_id], references: [term_id], onDelete: Restrict)
+  creator      User             @relation("CreatedTimetables", fields: [created_by], references: [user_id], onDelete: Restrict)
+  sessions     Session[]
+  entries      TimetableEntry[]
+  entryBatches EntryBatch[]
+  changeLogs   ChangeLog[]
+
+  @@map("timetables")
+}
+
+model Session {
+  session_id       String           @id @map("session_id")
+  timetable_id     String           @map("timetable_id")
+  subject_id       String           @map("subject_id")
+  faculty_id       String           @map("faculty_id")
+  room_id          String?          @map("room_id")
+  session_type     String           @map("session_type")
+  duration_slots   Int              @default(1) @map("duration_slots")
+  weekly_frequency Int              @default(1) @map("weekly_frequency")
+  created_at       DateTime         @default(now()) @map("created_at")
+  timetable        Timetable        @relation(fields: [timetable_id], references: [timetable_id], onDelete: Cascade)
+  subject          Subject          @relation(fields: [subject_id], references: [subject_id], onDelete: Restrict)
+  faculty          Faculty          @relation(fields: [faculty_id], references: [faculty_id], onDelete: Restrict)
+  preferredRoom    Room?            @relation(fields: [room_id], references: [room_id], onDelete: Restrict)
+  sessionBatches   SessionBatch[]
+  entries          TimetableEntry[]
+
+  @@map("sessions")
+}
+
+model SessionBatch {
+  session_id String  @map("session_id")
+  batch_id   String  @map("batch_id")
+  session    Session @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
+  batch      Batch   @relation(fields: [batch_id], references: [batch_id], onDelete: Restrict)
+
+  @@id([session_id, batch_id])
+  @@map("session_batches")
+}
+
+model TimetableEntry {
+  entry_id      String         @id @map("entry_id")
+  timetable_id  String         @map("timetable_id")
+  session_id    String         @map("session_id")
+  slot_id       String         @map("slot_id")
+  room_id       String         @map("room_id")
+  faculty_id    String         @map("faculty_id")
+  created_at    DateTime       @default(now()) @map("created_at")
+  timetable     Timetable      @relation(fields: [timetable_id], references: [timetable_id], onDelete: Cascade)
+  session       Session        @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
+  slot          TimeSlot       @relation(fields: [slot_id], references: [slot_id], onDelete: Restrict)
+  room          Room           @relation(fields: [room_id], references: [room_id], onDelete: Restrict)
+  faculty       Faculty        @relation(fields: [faculty_id], references: [faculty_id], onDelete: Restrict)
+  entryBatches  EntryBatch[]
+  substitutions Substitution[]
+
+  @@unique([timetable_id, room_id, slot_id], name: "uq_room_slot")
+  @@unique([timetable_id, faculty_id, slot_id], name: "uq_faculty_slot")
+  @@index([timetable_id, slot_id])
+  @@index([faculty_id])
+  @@index([room_id])
+  @@map("timetable_entries")
+}
+
+model EntryBatch {
+  entry_id     String         @map("entry_id")
+  batch_id     String         @map("batch_id")
+  timetable_id String         @map("timetable_id")
+  slot_id      String         @map("slot_id")
+  entry        TimetableEntry @relation(fields: [entry_id], references: [entry_id], onDelete: Cascade)
+  batch        Batch          @relation(fields: [batch_id], references: [batch_id], onDelete: Restrict)
+  timetable    Timetable      @relation(fields: [timetable_id], references: [timetable_id], onDelete: Cascade)
+  slot         TimeSlot       @relation(fields: [slot_id], references: [slot_id], onDelete: Restrict)
+
+  @@id([entry_id, batch_id])
+  @@unique([timetable_id, batch_id, slot_id], name: "uq_batch_slot")
+  @@index([batch_id])
+  @@map("entry_batches")
+}
+
+model LeaveRequest {
+  leave_id      String         @id @map("leave_id")
+  faculty_id    String         @map("faculty_id")
+  from_date     DateTime       @map("from_date")
+  to_date       DateTime       @map("to_date")
+  reason        String
+  status        String
+  created_at    DateTime       @default(now()) @map("created_at")
+  faculty       Faculty        @relation(fields: [faculty_id], references: [faculty_id], onDelete: Cascade)
+  substitutions Substitution[]
+
+  @@map("leave_requests")
+}
+
+model Substitution {
+  sub_id                String         @id @map("sub_id")
+  leave_id              String         @map("leave_id")
+  entry_id              String         @map("entry_id")
+  substitute_faculty_id String?        @map("substitute_faculty_id")
+  rescheduled_slot_id   String?        @map("rescheduled_slot_id")
+  rescheduled_room_id   String?        @map("rescheduled_room_id")
+  sub_date              DateTime       @map("sub_date")
+  action                String
+  status                String
+  logged_at             DateTime       @default(now()) @map("logged_at")
+  leave                 LeaveRequest   @relation(fields: [leave_id], references: [leave_id], onDelete: Cascade)
+  entry                 TimetableEntry @relation(fields: [entry_id], references: [entry_id], onDelete: Cascade)
+  substituteFaculty     Faculty?       @relation("SubstituteFaculty", fields: [substitute_faculty_id], references: [faculty_id], onDelete: SetNull)
+  rescheduledSlot       TimeSlot?      @relation("RescheduledSlot", fields: [rescheduled_slot_id], references: [slot_id], onDelete: SetNull)
+  rescheduledRoom       Room?          @relation("RescheduledRoom", fields: [rescheduled_room_id], references: [room_id], onDelete: SetNull)
+
+  @@map("substitutions")
+}
+
+model ChangeLog {
+  log_id        String         @id @map("log_id")
+  timetable_id  String         @map("timetable_id")
+  change_type   String         @map("change_type")
+  description   String
+  reason        String
+  changed_by    String         @map("changed_by")
+  changed_on    DateTime       @default(now()) @map("changed_on")
+  timetable     Timetable      @relation(fields: [timetable_id], references: [timetable_id], onDelete: Cascade)
+  author        User           @relation("AuthorChangeLogs", fields: [changed_by], references: [user_id], onDelete: Restrict)
+  notifications Notification[]
+
+  @@index([timetable_id])
+  @@map("change_logs")
+}
+
+model Notification {
+  notif_id     String     @id @map("notif_id")
+  log_id       String?    @map("log_id")
+  recipient_id String     @map("recipient_id")
+  message      String
+  is_read      Boolean    @default(false) @map("is_read")
+  sent_on      DateTime   @default(now()) @map("sent_on")
+  changeLog    ChangeLog? @relation(fields: [log_id], references: [log_id], onDelete: Cascade)
+  recipient    User       @relation(fields: [recipient_id], references: [user_id], onDelete: Cascade)
+
+  @@index([recipient_id, is_read])
+  @@map("notifications")
+}
+

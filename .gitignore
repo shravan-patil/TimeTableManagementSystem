@@ -32,3 +32,7 @@ Thumbs.db
 
 # Local certificates and keys
 *.pem
+
+# Archives
+*.zip
+
